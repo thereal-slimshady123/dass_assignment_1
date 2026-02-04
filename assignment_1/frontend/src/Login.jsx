@@ -14,11 +14,23 @@ export default function Login()
   const [msg, setMsg] = useState("");
   const [darkMode, setDarkMode]=useState(true);
 
+
+  const emailValidator = (email) => {
+    const emailRegex =
+      /^[a-zA-Z0-9._%+-]+@(research\.iiit\.ac\.in|students\.iiit\.ac\.in|iiit\.ac\.in)$/;
+
+    if (!emailRegex.test(email)) {
+      throw new Error("Please use a valid IIIT email address");
+    }
+  };
+
+
   const submitForm=async(e) =>
   {
     e.preventDefault();
     try
     {
+        emailValidator(email);
         let loginMode;
         if(isLogin)
         {
@@ -29,7 +41,7 @@ export default function Login()
     }
     catch(err)
     {
-        setMsg(err.response?.data?.message || "An error occurred, please try again later");
+        setMsg(err.message||err.response?.data?.message || "An error occurred, please try again later");
     }
   };
 
