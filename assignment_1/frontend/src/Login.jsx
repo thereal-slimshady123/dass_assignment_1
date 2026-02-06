@@ -1,9 +1,11 @@
 import {useState} from "react";
+import { useNavigate } from 'react-router-dom'
 import {login, register} from "./services/AuthAPI.js";
 import './login.css';
 
 export default function Login()
 {
+  const navigate = useNavigate();
   const [firstName, setFirstName]=useState("");
   const [lastName, setLastName]=useState("");
   const [isLogin, setIsLogin] = useState(true);
@@ -37,7 +39,25 @@ export default function Login()
             loginMode=await login({email,password, role});
         }
         else loginMode=await register({firstName,lastName,email,password, role});
-        setMsg(loginMode.data.message || "Login successful");
+        const userRole = loginMode.data.user?.role || 'user';
+        setMsg(`Login successful! Your role is: ${userRole}`);
+        try {
+          if (loginMode.data?.user) {
+            localStorage.setItem('user', JSON.stringify(loginMode.data.user));
+          }
+          if (loginMode.data?.token) {
+            localStorage.setItem('token', loginMode.data.token);
+          }
+        } catch {}
+
+        // redirect based on role
+        if (userRole === 'user') {
+          navigate('/user');
+        } else if (userRole === 'admin') {
+          navigate('/admin');
+        } else if (userRole === 'organizer') {
+          navigate('/organizer');
+        }
     }
     catch(err)
     {

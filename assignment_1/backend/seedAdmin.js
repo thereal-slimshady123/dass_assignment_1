@@ -17,11 +17,12 @@ const seedAdmin = async () => {
     ({
       firstName: 'Admin',
       lastName: 'User',
-      email: 'admin@example.com',
+      email: 'admin@research.iiit.ac.in',
       password: 'admin123', 
       role: 'admin'
     });
 
+    console.log('Admin user created successfully:', admin.email);
     process.exit(0);
   }
   catch (error) 

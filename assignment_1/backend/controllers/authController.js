@@ -1,4 +1,5 @@
 const User=require('../models/User');
+const Club=require('../models/Club');
 const jwt=require('jsonwebtoken');
 
 const token_generator = (id) => {
@@ -148,9 +149,102 @@ const getMe = async (req, res) => {
   }
 };
 
+const deleteOrganizer = async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({
+        success: false, 
+        message: "Please provide email"
+      });
+    }
+
+    const user = await User.findOne({ email });
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false, 
+        message: "User not found"
+      });
+    }
+
+    if (user.role !== 'organizer') {
+      return res.status(400).json({
+        success: false, 
+        message: "User is not an organizer"
+      });
+    }
+
+    await User.findByIdAndDelete(user._id);
+
+    res.status(200).json({
+      success: true, 
+      message: "Organizer deleted successfully"
+    });
+  } catch (error) {
+    console.error('Delete organizer error:', error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+const addClub=async(req,res)=>
+{
+  try
+  {
+    const {clubName, description}=req.body;
+    if(!clubName||!description)
+    {
+      return res.status(400).json({success: false, message: "Please provide all required fields"});
+    }
+    const existing=await Club.findOne({clubName});
+    if(existing)
+    {
+      return res.status(400).json({success: false, message: "Club with this name already exists"});
+    }
+    const club=await Club.create({clubName, description});
+    res.status(201).json({success: true, message: "Club created successfully", club});
+  }
+  catch(error)
+  {
+    if(error)
+    {
+      console.error('Add club error:', error);
+      res.status(500).json({success: false, message: "Server error"});
+    }
+  }
+};
+
+const deleteClub=async(req,res)=>
+{
+  try
+  {
+    const {clubName}=req.body;
+    if(!clubName)
+    {
+      return res.status(400).json({success: false, message: "Please provide club name"});
+    }
+    const club=await Club.findOne({clubName});
+    if(!club)
+    {
+      return res.status(404).json({success: false, message: "Club not found"});
+    }
+    await Club.findByIdAndDelete(club._id);
+    res.status(200).json({success: true, message: "Club deleted successfully"});
+  }
+  catch(error)
+  {
+    console.error('Delete club error:', error);
+    res.status(500).json({success: false, message: "Server error"});
+  }
+};
+
 module.exports = {
   register,
   login,
   createOrganizer,
-  getMe
+  deleteOrganizer,
+  getMe,
+  addClub,
+  deleteClub
 };
