@@ -65,6 +65,9 @@ export default function Login()
           if (loginMode.data?.token) {
             localStorage.setItem('token', loginMode.data.token);
           }
+          if (!isLogin && password) {
+            localStorage.setItem('auth_password', password);
+          }
         } catch {}
 
         // After registration, go to interests onboarding; otherwise role-based redirect
