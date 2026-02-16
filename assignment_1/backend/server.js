@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const connectDB = require('./config/db');
+const Admin = require('./models/admin');
 
 connectDB();
 
@@ -27,6 +28,23 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+const ensureAdminProvisioned = async () => {
+  const { ADMIN_EMAIL, ADMIN_PASSWORD, ADMIN_NAME = 'Admin' } = process.env;
+  if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
+    console.warn('Admin provisioning skipped: set ADMIN_EMAIL and ADMIN_PASSWORD env vars');
+    return;
+  }
+
+  const existing = await Admin.findOne({ email: ADMIN_EMAIL });
+  if (existing) {
+    return;
+  }
+
+  await Admin.create({ adminName: ADMIN_NAME, email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+  console.log('Admin account provisioned');
+};
+
+app.listen(PORT, async () => {
+  await ensureAdminProvisioned();
   console.log(`Server is running on port ${PORT}`);
 });

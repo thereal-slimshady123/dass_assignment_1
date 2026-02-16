@@ -1,4 +1,5 @@
 const User=require('../models/User');
+const Admin=require('../models/admin');
 const Club=require('../models/Club');
 const Organizer=require('../models/Organizer');
 const jwt=require('jsonwebtoken');
@@ -16,33 +17,33 @@ const register=async(req,res)=>
     try
     {
         console.log('Registration request body:', req.body);
-        const {firstName,lastName,email,password, role, college_name, phone_number}=req.body;
+          const {firstName,lastName,email,password, userType, college_name, phone_number}=req.body;
         
         console.log('Extracted fields:', {
-            firstName, lastName, email, password: '***', role, college_name, phone_number
+          firstName, lastName, email, password: '***', userType, college_name, phone_number
         });
         
-        if(!firstName||!lastName||!email||!password||!role||!college_name||!phone_number)
+          if(!firstName||!lastName||!email||!password||!userType||!college_name||!phone_number)
         {
             console.log('Validation failed - missing fields:', {
                 firstName: !!firstName, 
                 lastName: !!lastName, 
                 email: !!email, 
                 password: !!password, 
-                role: !!role, 
+               userType: !!userType, 
                 college_name: !!college_name, 
                 phone_number: !!phone_number
             });
             return res.status(400).json({success:false, message:"Please provide all required fields"});
         }
         
-        if(!['IIIT', 'nonIIIT'].includes(role))
+          if(!['IIIT', 'nonIIIT'].includes(userType))
         {
-            console.log('Invalid role:', role);
-            return res.status(400).json({success:false, message:"Invalid role. Must be 'IIIT' or 'nonIIIT'"});
+            console.log('Invalid userType:', userType);
+            return res.status(400).json({success:false, message:"Invalid userType. Must be 'IIIT' or 'nonIIIT'"});
         }
         
-        if(role === 'IIIT') {
+          if(userType === 'IIIT') {
             const validDomains = ['@research.iiit.ac.in', '@students.iiit.ac.in', '@iiit.ac.in'];
             const isValidDomain = validDomains.some(domain => email.endsWith(domain));
             
@@ -50,7 +51,7 @@ const register=async(req,res)=>
                 console.log('Invalid IIIT email:', email);
                 return res.status(400).json({
                     success:false, 
-                    message:"IIIT role requires email from @research.iiit.ac.in, @students.iiit.ac.in, or @iiit.ac.in"
+                 message:"IIIT userType requires email from @research.iiit.ac.in, @students.iiit.ac.in, or @iiit.ac.in"
                 });
             }
         }
@@ -59,11 +60,11 @@ const register=async(req,res)=>
         if(existingUser)
         {
             console.log('User already exists:', email);
-            return res.status(400).json({success: false, message: "Account with this username already exists"});
+             return res.status(400).json({success: false, message: "Account with this email already exists"});
         }
         
         console.log('Creating user...');
-        const user=await User.create({firstName, lastName, email, password, role, college_name, phone_number});
+           const user=await User.create({firstName, lastName, email, password, role: 'user', userType, college_name, phone_number});
         const token=token_generator(user._id);
         res.status(201).json
         ({
@@ -76,7 +77,8 @@ const register=async(req,res)=>
             firstName: user.firstName,
             lastName: user.lastName,
             email: user.email,
-            role: user.role
+            role: user.role,
+            userType: user.userType
           }
         });
     }
@@ -92,11 +94,35 @@ const login=async(req,res)=>
 {
     try
     {
-        const {email, password, role}=req.body;
+        const {email, password}=req.body;
         if(!email||!password)
         {
             return res.status(400).json({success: false, message: "Please provide email and password"});
         }
+        // Admin login path
+        const admin=await Admin.findOne({email});
+        if(admin)
+        {
+            const isAdminPasswordCorrect = await admin.comparePassword(password);
+            if(!isAdminPasswordCorrect)
+            {
+                return res.status(401).json({success: false, message: "Invalid credentials"});
+            }
+            const token=token_generator(admin._id);
+            return res.status(200).json({
+              success: true,
+              message: "Login successful",
+              token,
+              user:
+              {
+                id: admin._id,
+                adminName: admin.adminName,
+                email: admin.email,
+                role: 'admin'
+              }
+            });
+        }
+
         const validateUser=await User.findOne({email});
         if(!validateUser)
         {
@@ -118,7 +144,8 @@ const login=async(req,res)=>
             firstName: validateUser.firstName,
             lastName: validateUser.lastName,
             email: validateUser.email,
-            role: validateUser.role
+            role: validateUser.role,
+            userType: validateUser.userType
           }
         });
     }

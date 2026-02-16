@@ -11,7 +11,7 @@ export default function Login()
   const [isLogin, setIsLogin] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole]=useState("nonIIIT");
+  const [userType, setUserType]=useState("nonIIIT");
   const [collegeName, setCollegeName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [showPass, setShowPass] = useState(false);
@@ -19,12 +19,12 @@ export default function Login()
   const [darkMode, setDarkMode]=useState(true);
 
 
-  const emailValidator = (email, userRole) => {
-    if (userRole === 'IIIT') {
+  const emailValidator = (email, type) => {
+    if (type === 'IIIT') {
       const emailRegex =
         /^[a-zA-Z0-9._%+-]+@(research\.iiit\.ac\.in|students\.iiit\.ac\.in|iiit\.ac\.in)$/;
       if (!emailRegex.test(email)) {
-        throw new Error("IIIT role requires email from @research.iiit.ac.in, @students.iiit.ac.in, or @iiit.ac.in");
+        throw new Error("IIIT email must be @research.iiit.ac.in, @students.iiit.ac.in, or @iiit.ac.in");
       }
     }
   };
@@ -36,7 +36,7 @@ export default function Login()
     try
     {
         if (!isLogin) {
-          emailValidator(email, role);
+          emailValidator(email, userType);
         }
         let loginMode;
         if(isLogin)
@@ -49,13 +49,13 @@ export default function Login()
               lastName,
               email,
               password,
-              role,
+              userType,
               college_name: collegeName,
               phone_number: phoneNumber
             });
         }
         
-        const userRole = loginMode.data.user?.role || 'nonIIIT';
+        const userRole = loginMode.data.user?.role || 'user';
         setMsg(`Login successful! Your role is: ${userRole}`);
         
         try {
@@ -66,12 +66,12 @@ export default function Login()
             localStorage.setItem('token', loginMode.data.token);
           }
         } catch {}
-        if (userRole === 'IIIT' || userRole === 'nonIIIT') {
-          navigate('/user');
-        } else if (userRole === 'admin') {
+        if (userRole === 'admin') {
           navigate('/admin');
         } else if (userRole === 'organizer') {
           navigate('/organizer');
+        } else {
+          navigate('/user');
         }
     }
     catch(err)
@@ -105,26 +105,26 @@ return (
             />
             <div className="roleSelector">
               <label className={darkMode ? "roleLabel_dark" : "roleLabel"}>
-                Select Role:
+                Select Affiliation:
               </label>
               <div className="roleButtons">
                 <button
                   type="button"
-                  onClick={() => setRole("IIIT")}
-                  className={`${darkMode ? "roleButton_dark" : "roleButton"} ${role === "IIIT" ? (darkMode ? "roleButtonActive_dark" : "roleButtonActive") : ""}`}
+                  onClick={() => setUserType("IIIT")}
+                  className={`${darkMode ? "roleButton_dark" : "roleButton"} ${userType === "IIIT" ? (darkMode ? "roleButtonActive_dark" : "roleButtonActive") : ""}`}
                 >
                   IIIT
                 </button>
                 <button
                   type="button"
-                  onClick={() => setRole("nonIIIT")}
-                  className={`${darkMode ? "roleButton_dark" : "roleButton"} ${role === "nonIIIT" ? (darkMode ? "roleButtonActive_dark" : "roleButtonActive") : ""}`}
+                  onClick={() => setUserType("nonIIIT")}
+                  className={`${darkMode ? "roleButton_dark" : "roleButton"} ${userType === "nonIIIT" ? (darkMode ? "roleButtonActive_dark" : "roleButtonActive") : ""}`}
                 >
                   Non-IIIT
                 </button>
               </div>
             </div>
-            {role === "IIIT" && (
+            {userType === "IIIT" && (
               <p className={darkMode ? "emailHint_dark" : "emailHint"}>
                 Use email from @research.iiit.ac.in, @students.iiit.ac.in, or @iiit.ac.in
               </p>

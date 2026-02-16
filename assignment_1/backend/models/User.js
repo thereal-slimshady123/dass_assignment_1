@@ -27,17 +27,23 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['IIIT', 'nonIIIT'],
+    enum: ['user', 'organizer', 'admin'],
+    default: 'user',
     required: [true, 'Role is required']
+  },
+  userType: {
+    type: String,
+    enum: ['IIIT', 'nonIIIT'],
+    required: function() { return this.role === 'user'; }
   },
   college_name: {
     type: String,
-    required: [true, 'College/Organization name is required'],
+    required: function() { return this.role === 'user'; },
     trim: true
   },
   phone_number: {
     type: String,
-    required: [true, 'Phone number is required'],
+    required: function() { return this.role === 'user'; },
     trim: true
   }
 },
@@ -46,12 +52,12 @@ const userSchema = new mongoose.Schema({
 });
 
 userSchema.pre('validate', function() {
-  if (this.role === 'IIIT') {
+  if (this.role === 'user' && this.userType === 'IIIT') {
     const validDomains = ['@research.iiit.ac.in', '@students.iiit.ac.in', '@iiit.ac.in'];
     const isValidDomain = validDomains.some(domain => this.email.endsWith(domain));
-    
+
     if (!isValidDomain) {
-      this.invalidate('email', 'IIIT role requires email from @research.iiit.ac.in, @students.iiit.ac.in, or @iiit.ac.in');
+      this.invalidate('email', 'IIIT userType requires email from @research.iiit.ac.in, @students.iiit.ac.in, or @iiit.ac.in');
     }
   }
 });
