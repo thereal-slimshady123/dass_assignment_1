@@ -2,6 +2,7 @@ const User=require('../models/User');
 const Admin=require('../models/admin');
 const Club=require('../models/Club');
 const Organizer=require('../models/Organizer');
+const Event=require('../models/events');
 const jwt=require('jsonwebtoken');
 
 const token_generator = (id) => {
@@ -305,6 +306,72 @@ const deleteClub=async(req,res)=>
   }
 };
 
+const addEvent = async (req, res) => {
+  try {
+    const {
+      eventName,
+      description,
+      type,
+      eligibility,
+      reg_deadline,
+      event_start,
+      event_end,
+      reg_limit,
+      reg_fee,
+      organizerEmail,
+      event_tags
+    } = req.body;
+
+    if (!eventName || !description || !type || !eligibility || !reg_deadline || !event_start || !event_end || reg_limit === undefined || reg_fee === undefined || !organizerEmail || !event_tags || !Array.isArray(event_tags) || event_tags.length === 0) {
+      return res.status(400).json({ success: false, message: "Please provide all required fields" });
+    }
+
+    const organizer = await User.findOne({ email: organizerEmail, role: 'organizer' });
+    if (!organizer) {
+      return res.status(400).json({ success: false, message: "Organizer not found or not an organizer" });
+    }
+
+    const event = await Event.create({
+      eventName,
+      description,
+      type,
+      eligibility,
+      reg_deadline,
+      event_start,
+      event_end,
+      reg_limit,
+      reg_fee,
+      organizer_id: organizer._id,
+      event_tags
+    });
+
+    res.status(201).json({ success: true, message: "Event created successfully", event });
+  } catch (error) {
+    console.error('Add event error:', error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+const deleteEvent = async (req, res) => {
+  try {
+    const { eventName } = req.body;
+    if (!eventName) {
+      return res.status(400).json({ success: false, message: "Please provide event name" });
+    }
+
+    const event = await Event.findOne({ eventName });
+    if (!event) {
+      return res.status(404).json({ success: false, message: "Event not found" });
+    }
+
+    await Event.findByIdAndDelete(event._id);
+    res.status(200).json({ success: true, message: "Event deleted successfully" });
+  } catch (error) {
+    console.error('Delete event error:', error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -312,5 +379,7 @@ module.exports = {
   deleteOrganizer,
   getMe,
   addClub,
-  deleteClub
+  deleteClub,
+  addEvent,
+  deleteEvent
 };

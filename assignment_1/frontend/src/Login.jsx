@@ -66,6 +66,13 @@ export default function Login()
             localStorage.setItem('token', loginMode.data.token);
           }
         } catch {}
+
+        // After registration, go to interests onboarding; otherwise role-based redirect
+        if (!isLogin) {
+          navigate('/interests');
+          return;
+        }
+
         if (userRole === 'admin') {
           navigate('/admin');
         } else if (userRole === 'organizer') {

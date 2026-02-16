@@ -45,3 +45,22 @@ export const deleteClub = (data) => {
     data: data
   });
 };
+
+export const addEvent = (data) => {
+  const token = localStorage.getItem('token');
+  return axios.post(`${API}/add-event`, data, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+};
+
+export const deleteEvent = (data) => {
+  const token = localStorage.getItem('token');
+  return axios.delete(`${API}/delete-event`, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    },
+    data: data
+  });
+};

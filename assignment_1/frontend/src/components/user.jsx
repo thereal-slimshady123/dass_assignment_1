@@ -1,20 +1,82 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from 'react-router-dom'
 import './user.css';
+
+const areaOptions = [
+        "AI / ML",
+        "Web Development",
+        "Systems / DevOps",
+        "Product / Design",
+        "Entrepreneurship",
+        "Cybersecurity",
+        "Data Science",
+        "Robotics",
+        "Competitive Programming"
+    ];
+  
+    const clubOptions = [
+        "Coding Club",
+        "Robotics Club",
+        "Entrepreneurship Cell",
+        "Design Club",
+        "ML Society",
+        "Cybersecurity Group"
+    ];
 
 export default function User() {
     const [darkMode, setDarkMode] = useState(true);
     const [user, setUser] = useState(null);
+    const [firstName, setFirstName] = useState("");
+    const [lastName, setLastName] = useState("");
+    const [areas, setAreas] = useState([]);
+    const [clubs, setClubs] = useState([]);
+    const [msg, setMsg] = useState("");
     const navigate = useNavigate();
 
     useEffect(() => {
         try {
             const raw = localStorage.getItem('user');
-            if (raw) setUser(JSON.parse(raw));
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                setUser(parsed);
+                setFirstName(parsed.firstName || "");
+                setLastName(parsed.lastName || "");
+            }
+            const prefRaw = localStorage.getItem('preferences');
+            if (prefRaw) {
+                const prefs = JSON.parse(prefRaw);
+                if (prefs.areas) setAreas(prefs.areas);
+                if (prefs.clubs) setClubs(prefs.clubs);
+            }
         } catch {
             setUser(null);
         }
     }, []);
+
+    const toggle = (value, list, setList) => {
+        if (list.includes(value)) {
+            setList(list.filter((item) => item !== value));
+        } else {
+            setList([...list, value]);
+        }
+    };
+
+    const saveProfile = () => {
+        setMsg("");
+        try {
+            const updatedUser = {
+                ...(user || {}),
+                firstName,
+                lastName
+            };
+            localStorage.setItem('user', JSON.stringify(updatedUser));
+            localStorage.setItem('preferences', JSON.stringify({ areas, clubs }));
+            setUser(updatedUser);
+            setMsg("Profile updated");
+        } catch (e) {
+            setMsg("Could not save profile");
+        }
+    };
 
     const handleLogout = () => {
         localStorage.removeItem('user');
@@ -92,11 +154,12 @@ export default function User() {
 
                         <div className="card">
                             <h4>Profile Settings</h4>
-                            <p className="muted">Update your profile, change password, or manage preferences.</p>
-                            <button className="small-btn" onClick={() => alert('Profile settings coming soon')}
-                                 onMouseEnter={(e)=>{e.target.style.scale="1.1"; e.target.style.transition="all 0.2s ease";}}
+                            <p className="muted">Update display name and interests.</p>
+                            <button className="small-btn" onClick={()=>navigate('/interests')}
+                                 onMouseEnter={(e)=>{e.target.style.scale="1.05"; e.target.style.transition="all 0.2s ease";}}
                                 onMouseLeave={(e)=>{e.target.style.scale="1"; e.target.style.transition="all 0.2s ease";}}>
-                                Edit</button>
+                                Edit
+                            </button>
                         </div>
                     </div>
                 </section>

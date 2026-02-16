@@ -4,6 +4,7 @@ import { createOrganizer } from '../services/AuthAPI.js';
 import {deleteOrganizer} from '../services/AuthAPI.js';    
 import {addClub} from '../services/AuthAPI.js';
 import {deleteClub} from '../services/AuthAPI.js';
+import {addEvent, deleteEvent} from '../services/AuthAPI.js';
 import './user.css';
 
 export default function Admin() {
@@ -23,7 +24,31 @@ export default function Admin() {
         clubName: '',
         description: ''
     });
+    const [eventData, setEventData] = useState({
+        eventName: '',
+        description: '',
+        type: 'normal',
+        eligibility: 'open',
+        reg_deadline: '',
+        event_start: '',
+        event_end: '',
+        reg_limit: 100,
+        reg_fee: 0,
+        organizerEmail: '',
+        event_tags: ''
+    });
     const [message, setMessage] = useState('');
+    const [showEvents, setShowEvents] = useState(false);
+
+    const inputStyle = (isDark) => ({
+        width: '100%',
+        padding: '10px',
+        marginBottom: '10px',
+        borderRadius: '4px',
+        border: '1px solid #ccc',
+        backgroundColor: isDark ? '#3a3a3a' : '#fff',
+        color: isDark ? '#fff' : '#000'
+    });
 
     useEffect(() => {
         try {
@@ -108,6 +133,56 @@ export default function Admin() {
             }, 2000);
         } catch (error) {
             setMessage(error.response?.data?.message || 'Failed to delete club');
+        }
+    };
+
+    const createEvent = async (e) => {
+        e.preventDefault();
+        setMessage('');
+        try {
+            const payload = {
+                ...eventData,
+                reg_limit: Number(eventData.reg_limit),
+                reg_fee: Number(eventData.reg_fee),
+                event_tags: eventData.event_tags.split(',').map(t => t.trim()).filter(Boolean)
+            };
+            const response = await addEvent(payload);
+            setMessage(response.data.message || 'Event created successfully!');
+            setEventData({
+                eventName: '',
+                description: '',
+                type: 'normal',
+                eligibility: 'open',
+                reg_deadline: '',
+                event_start: '',
+                event_end: '',
+                reg_limit: 100,
+                reg_fee: 0,
+                organizerEmail: '',
+                event_tags: ''
+            });
+            setTimeout(() => {
+                setShowEvents(false);
+                setMessage('');
+            }, 2000);
+        } catch (error) {
+            setMessage(error.response?.data?.message || 'Failed to create event');
+        }
+    };
+
+    const removeEvent = async (e) => {
+        e.preventDefault();
+        setMessage('');
+        try {
+            const response = await deleteEvent({ eventName: eventData.eventName });
+            setMessage(response.data.message || 'Event deleted successfully!');
+            setEventData({ ...eventData, eventName: '' });
+            setTimeout(() => {
+                setShowEvents(false);
+                setMessage('');
+            }, 2000);
+        } catch (error) {
+            setMessage(error.response?.data?.message || 'Failed to delete event');
         }
     };
 
@@ -315,6 +390,80 @@ export default function Admin() {
                                     <button type="button" className="small-btn" style={{ width: '100%', marginTop: '10px' }} onClick={removeClub}>
                                         Remove Club
                                     </button>
+                                    {message && (
+                                        <p style={{ 
+                                            marginTop: '10px', 
+                                            color: message.includes('success') || message.includes('created') || message.includes('deleted') ? '#28a745' : '#dc3545',
+                                            textAlign: 'center'
+                                        }}>
+                                            {message}
+                                        </p>
+                                    )}
+                                </form>
+                            )}
+                        </div>
+                        <div className="card">
+                            <h4>Manage Events</h4>
+                            <p className="muted">Add or remove events.</p>
+                            <button className="small-btn" onClick={() => setShowEvents(!showEvents)}
+                                onMouseEnter={(e)=>{e.target.style.scale="1.1"; e.target.style.transition="all 0.2s ease";}}
+                                onMouseLeave={(e)=>{e.target.style.scale="1"; e.target.style.transition="all 0.2s ease";}}>
+                                {showEvents ? 'Cancel' : 'Manage Events'}</button>
+
+                            {showEvents && (
+                                <form onSubmit={createEvent} style={{ marginTop: '20px' }}>
+                                    <input type="text" placeholder="Event Name" value={eventData.eventName}
+                                        onChange={(e)=>setEventData({...eventData, eventName: e.target.value})}
+                                        required style={inputStyle(darkMode)} />
+                                    <textarea placeholder="Description" value={eventData.description}
+                                        onChange={(e)=>setEventData({...eventData, description: e.target.value})}
+                                        required style={{...inputStyle(darkMode), minHeight:'80px', resize:'vertical', fontFamily:'inherit'}} />
+                                    <select value={eventData.type} onChange={(e)=>setEventData({...eventData, type: e.target.value})}
+                                        required style={inputStyle(darkMode)}>
+                                        <option value="normal">Normal</option>
+                                        <option value="merchandise">Merchandise</option>
+                                    </select>
+                                    <select value={eventData.eligibility} onChange={(e)=>setEventData({...eventData, eligibility: e.target.value})}
+                                        required style={inputStyle(darkMode)}>
+                                        <option value="open">Open</option>
+                                        <option value="member-only">Member-only</option>
+                                    </select>
+                                    <label className="muted">Registration Deadline</label>
+                                    <input type="datetime-local" value={eventData.reg_deadline}
+                                        onChange={(e)=>setEventData({...eventData, reg_deadline: e.target.value})}
+                                        required style={inputStyle(darkMode)} />
+                                    <label className="muted">Event Start</label>
+                                    <input type="datetime-local" value={eventData.event_start}
+                                        onChange={(e)=>setEventData({...eventData, event_start: e.target.value})}
+                                        required style={inputStyle(darkMode)} />
+                                    <label className="muted">Event End</label>
+                                    <input type="datetime-local" value={eventData.event_end}
+                                        onChange={(e)=>setEventData({...eventData, event_end: e.target.value})}
+                                        required style={inputStyle(darkMode)} />
+                                    <input type="number" placeholder="Registration Limit" value={eventData.reg_limit}
+                                        onChange={(e)=>setEventData({...eventData, reg_limit: e.target.value})}
+                                        required style={inputStyle(darkMode)} />
+                                    <input type="number" placeholder="Registration Fee" value={eventData.reg_fee}
+                                        onChange={(e)=>setEventData({...eventData, reg_fee: e.target.value})}
+                                        required style={inputStyle(darkMode)} />
+                                    <input type="email" placeholder="Organizer Email" value={eventData.organizerEmail}
+                                        onChange={(e)=>setEventData({...eventData, organizerEmail: e.target.value})}
+                                        required style={inputStyle(darkMode)} />
+                                    <input type="text" placeholder="Event Tags (comma separated)" value={eventData.event_tags}
+                                        onChange={(e)=>setEventData({...eventData, event_tags: e.target.value})}
+                                        required style={inputStyle(darkMode)} />
+                                    <div style={{ display: 'flex', gap: '10px' }}>
+                                        <button className="small-btn" type="submit"
+                                            onMouseEnter={(e)=>{e.target.style.scale="1.1"; e.target.style.transition="all 0.2s ease";}}
+                                            onMouseLeave={(e)=>{e.target.style.scale="1"; e.target.style.transition="all 0.2s ease";}}>
+                                            Add Event
+                                        </button>
+                                        <button className="small-btn" type="button" onClick={removeEvent}
+                                            onMouseEnter={(e)=>{e.target.style.scale="1.1"; e.target.style.transition="all 0.2s ease";}}
+                                            onMouseLeave={(e)=>{e.target.style.scale="1"; e.target.style.transition="all 0.2s ease";}}>
+                                            Delete Event
+                                        </button>
+                                    </div>
                                     {message && (
                                         <p style={{ 
                                             marginTop: '10px', 
