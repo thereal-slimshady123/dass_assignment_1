@@ -1,12 +1,38 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import UserNav from "../components/UserNav";
 import "../components/user.css";
-import { loadEvents } from "../utils/eventStore";
+import { getEvents } from "../services/AuthAPI";
 
 export default function OrganizerDetail() {
   const { organizerId } = useParams();
-  const [events] = useState(() => loadEvents());
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchEvents = async () => {
+      try {
+        const response = await getEvents();
+        if (isMounted) {
+          setEvents(response.data.events || []);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setErrorMsg("Organizer not found.");
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+    fetchEvents();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const organizer = useMemo(() => {
     return events.find((event) => event.organizer?.id === organizerId)?.organizer;
@@ -26,7 +52,18 @@ export default function OrganizerDetail() {
     );
   }, [events, organizerId]);
 
-  if (!organizer) {
+  if (loading) {
+    return (
+      <div className="user-root">
+        <UserNav />
+        <header className="user-header">
+          <h1>Loading Organizer...</h1>
+        </header>
+      </div>
+    );
+  }
+
+  if (!organizer || errorMsg) {
     return (
       <div className="user-root">
         <UserNav />
@@ -48,9 +85,9 @@ export default function OrganizerDetail() {
         <section className="content">
           <div className="section-card">
             <h3>Organizer Info</h3>
-            <p className="muted">{organizer.category}</p>
-            <p>{organizer.description}</p>
-            <p className="muted">Contact: {organizer.email}</p>
+            <p className="muted">{organizer.category || "Organizer"}</p>
+            <p>{organizer.description || "No description available."}</p>
+            <p className="muted">Contact: {organizer.email || "N/A"}</p>
           </div>
 
           <div className="section-card">

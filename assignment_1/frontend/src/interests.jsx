@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { getClubs } from "./services/AuthAPI";
 
 // Backend persistence: POST /api/preferences with Bearer token; falls back to localStorage if unavailable.
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000/api";
@@ -18,22 +19,11 @@ const areaOptions = [
     , "Gaming"
 ];
 
-const clubOptions = [
-	"Coding Club",
-	"Robotics Club",
-	"Entrepreneurship Cell",
-	"Design Club",
-	"The Gaming Club",
-	"ASEC",
-    "Music Club",
-    "The Dance Crew",
-    "LitClub"
-];
-
 export default function Interests() {
 	const navigate = useNavigate();
 	const [areas, setAreas] = useState([]);
 	const [clubs, setClubs] = useState([]);
+	const [clubOptions, setClubOptions] = useState([]);
 	const [saving, setSaving] = useState(false);
 	const [msg, setMsg] = useState("");
 
@@ -49,6 +39,27 @@ export default function Interests() {
 		if (storedPrefs.areas) setAreas(storedPrefs.areas);
 		if (storedPrefs.clubs) setClubs(storedPrefs.clubs);
 	}, [storedPrefs]);
+
+	useEffect(() => {
+		let isMounted = true;
+		const fetchClubs = async () => {
+			try {
+				const response = await getClubs();
+				if (isMounted) {
+					const clubsData = response.data.clubs || [];
+					setClubOptions(clubsData.map((club) => club.clubName));
+				}
+			} catch (error) {
+				if (isMounted) {
+					setMsg("Could not load clubs. You can continue without selecting clubs.");
+				}
+			}
+		};
+		fetchClubs();
+		return () => {
+			isMounted = false;
+		};
+	}, []);
 
 	const toggle = (value, list, setList) => {
 		if (list.includes(value)) {

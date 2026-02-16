@@ -106,19 +106,14 @@ export const addRegistration = ({ event, user, teamName }) => {
   return record;
 };
 
-export const updateEventOnRegister = (events, eventId) => {
-  const updated = events.map((event) => {
-    if (event.id !== eventId) return event;
-    const next = { ...event };
-    if (next.type === "merchandise") {
-      next.stock = Math.max(0, (next.stock ?? 0) - 1);
-    } else {
-      next.reg_limit = Math.max(0, (next.reg_limit ?? 0) - 1);
-    }
-    next.reg_count = (next.reg_count ?? 0) + 1;
-    next.registrations24h = (next.registrations24h ?? 0) + 1;
-    return next;
-  });
-  saveEvents(updated);
-  return updated;
+export const updateEventOnRegister = (event) => {
+  const next = { ...event };
+  if (next.type === "merchandise") {
+    next.stock = Math.max(0, (next.stock ?? 0) - 1);
+  } else {
+    next.reg_limit = Math.max(0, (next.reg_limit ?? 0) - 1);
+  }
+  next.reg_count = (next.reg_count ?? 0) + 1;
+  next.registrations24h = (next.registrations24h ?? 0) + 1;
+  return next;
 };

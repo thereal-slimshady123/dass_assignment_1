@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import UserNav from "../components/UserNav";
 import "../components/user.css";
 import { loadPreferences, loadUser, savePreferences, saveUser } from "../utils/profileStore";
-import { loadEvents } from "../utils/eventStore";
+import { getClubs } from "../services/AuthAPI";
 
 const interestOptions = [
   "Music",
@@ -20,16 +20,8 @@ const interestOptions = [
 export default function Profile() {
   const initialUser = useMemo(() => loadUser(), []);
   const initialPrefs = useMemo(() => loadPreferences(), []);
-  const availableClubs = useMemo(() => {
-    const events = loadEvents();
-    const map = new Map();
-    events.forEach((event) => {
-      if (event.organizer?.name) {
-        map.set(event.organizer.name, event.organizer.name);
-      }
-    });
-    return Array.from(map.values());
-  }, []);
+  const [availableClubs, setAvailableClubs] = useState([]);
+  const [clubMsg, setClubMsg] = useState("");
 
   const [firstName, setFirstName] = useState(initialUser?.firstName || "");
   const [lastName, setLastName] = useState(initialUser?.lastName || "");
@@ -43,6 +35,27 @@ export default function Profile() {
   const [newPass, setNewPass] = useState("");
   const [confirmPass, setConfirmPass] = useState("");
   const [passMsg, setPassMsg] = useState("");
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchClubs = async () => {
+      try {
+        const response = await getClubs();
+        if (isMounted) {
+          const clubs = response.data.clubs || [];
+          setAvailableClubs(clubs.map((club) => club.clubName));
+        }
+      } catch (error) {
+        if (isMounted) {
+          setClubMsg("Could not load clubs from the server.");
+        }
+      }
+    };
+    fetchClubs();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const toggle = (value, list, setList) => {
     if (list.includes(value)) {
@@ -169,6 +182,7 @@ export default function Profile() {
                 </button>
               ))}
               {!availableClubs.length && <p className="muted">No clubs available.</p>}
+              {clubMsg && <p className="message-error">{clubMsg}</p>}
             </div>
           </div>
 

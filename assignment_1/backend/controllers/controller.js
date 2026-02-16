@@ -372,6 +372,77 @@ const deleteEvent = async (req, res) => {
   }
 };
 
+const formatEvent = (eventDoc) => {
+  const organizer = eventDoc.organizer_id
+    ? {
+        id: eventDoc.organizer_id._id,
+        name: `${eventDoc.organizer_id.firstName || ""} ${eventDoc.organizer_id.lastName || ""}`.trim(),
+        email: eventDoc.organizer_id.email
+      }
+    : null;
+
+  return {
+    id: eventDoc._id,
+    eventName: eventDoc.eventName,
+    description: eventDoc.description,
+    type: eventDoc.type,
+    eligibility: eventDoc.eligibility,
+    reg_deadline: eventDoc.reg_deadline,
+    event_start: eventDoc.event_start,
+    event_end: eventDoc.event_end,
+    reg_limit: eventDoc.reg_limit,
+    reg_fee: eventDoc.reg_fee,
+    reg_count: 0,
+    registrations24h: 0,
+    stock: eventDoc.type === 'merchandise' ? eventDoc.reg_limit : undefined,
+    organizer,
+    event_tags: eventDoc.event_tags || []
+  };
+};
+
+const getEvents = async (req, res) => {
+  try {
+    const events = await Event.find()
+      .populate('organizer_id', 'firstName lastName email')
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      events: events.map(formatEvent)
+    });
+  } catch (error) {
+    console.error('Get events error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+const getEventById = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.id)
+      .populate('organizer_id', 'firstName lastName email')
+      .lean();
+
+    if (!event) {
+      return res.status(404).json({ success: false, message: 'Event not found' });
+    }
+
+    res.status(200).json({ success: true, event: formatEvent(event) });
+  } catch (error) {
+    console.error('Get event error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+const getClubs = async (req, res) => {
+  try {
+    const clubs = await Club.find().lean();
+    res.status(200).json({ success: true, clubs });
+  } catch (error) {
+    console.error('Get clubs error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -381,5 +452,8 @@ module.exports = {
   addClub,
   deleteClub,
   addEvent,
-  deleteEvent
+  deleteEvent,
+  getEvents,
+  getEventById,
+  getClubs
 };

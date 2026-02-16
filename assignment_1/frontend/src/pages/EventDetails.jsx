@@ -1,23 +1,56 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import UserNav from "../components/UserNav";
 import "../components/user.css";
-import { addRegistration, loadEvents, updateEventOnRegister } from "../utils/eventStore";
+import { addRegistration, updateEventOnRegister } from "../utils/eventStore";
 import { loadUser } from "../utils/profileStore";
+import { getEventById } from "../services/AuthAPI";
 
 export default function EventDetails() {
   const { eventId } = useParams();
   const navigate = useNavigate();
-  const [events, setEvents] = useState(() => loadEvents());
+  const [event, setEvent] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState("");
   const [teamName, setTeamName] = useState("");
   const [msg, setMsg] = useState("");
 
-  const event = useMemo(
-    () => events.find((item) => item.id === eventId),
-    [events, eventId]
-  );
+  useEffect(() => {
+    let isMounted = true;
+    const fetchEvent = async () => {
+      try {
+        const response = await getEventById(eventId);
+        if (isMounted) {
+          setEvent(response.data.event || null);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setErrorMsg("Event not found.");
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+    fetchEvent();
+    return () => {
+      isMounted = false;
+    };
+  }, [eventId]);
 
-  if (!event) {
+  if (loading) {
+    return (
+      <div className="user-root">
+        <UserNav />
+        <header className="user-header">
+          <h1>Loading Event...</h1>
+        </header>
+      </div>
+    );
+  }
+
+  if (!event || errorMsg) {
     return (
       <div className="user-root">
         <UserNav />
@@ -48,8 +81,8 @@ export default function EventDetails() {
     }
 
     addRegistration({ event, user, teamName });
-    const updated = updateEventOnRegister(events, event.id);
-    setEvents(updated);
+    const updated = updateEventOnRegister(event);
+    setEvent(updated);
 
     setMsg(
       event.type === "merchandise"

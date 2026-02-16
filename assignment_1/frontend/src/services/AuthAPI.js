@@ -64,3 +64,12 @@ export const deleteEvent = (data) => {
     data: data
   });
 };
+
+export const getEvents = () =>
+  axios.get(`${API}/events`);
+
+export const getEventById = (id) =>
+  axios.get(`${API}/events/${id}`);
+
+export const getClubs = () =>
+  axios.get(`${API}/clubs`);

@@ -1,16 +1,42 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import UserNav from "../components/UserNav";
 import "../components/user.css";
-import { loadRegistrations, loadEvents } from "../utils/eventStore";
+import { loadRegistrations } from "../utils/eventStore";
 import { loadUser } from "../utils/profileStore";
+import { getEvents } from "../services/AuthAPI";
 
 const tabs = ["Normal", "Merchandise", "Completed", "Cancelled/Rejected"];
 
 export default function UserDashboard() {
   const user = useMemo(() => loadUser(), []);
-  const events = useMemo(() => loadEvents(), []);
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("Normal");
   const [selectedTicket, setSelectedTicket] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchEvents = async () => {
+      try {
+        const response = await getEvents();
+        if (isMounted) {
+          setEvents(response.data.events || []);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setEvents([]);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+    fetchEvents();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const registrations = useMemo(() => {
     const list = loadRegistrations();
@@ -71,7 +97,7 @@ export default function UserDashboard() {
                   </article>
                 ))
               ) : (
-                <p className="muted">No upcoming events yet.</p>
+                <p className="muted">{loading ? "Loading events..." : "No upcoming events yet."}</p>
               )}
             </div>
           </div>

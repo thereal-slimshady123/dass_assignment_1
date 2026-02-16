@@ -1,9 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import UserNav from "../components/UserNav";
 import "../components/user.css";
-import { loadEvents } from "../utils/eventStore";
 import { loadPreferences } from "../utils/profileStore";
+import { getEvents } from "../services/AuthAPI";
 
 const normalize = (value) => value.toLowerCase().trim();
 
@@ -26,10 +26,36 @@ export default function BrowseEvents() {
   const [dateStart, setDateStart] = useState("");
   const [dateEnd, setDateEnd] = useState("");
   const [followedOnly, setFollowedOnly] = useState(false);
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState("");
 
-  const events = useMemo(() => loadEvents(), []);
   const preferences = useMemo(() => loadPreferences(), []);
   const followedClubs = preferences.clubs || [];
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchEvents = async () => {
+      try {
+        const response = await getEvents();
+        if (isMounted) {
+          setEvents(response.data.events || []);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setErrorMsg("Could not load events from the server.");
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+    fetchEvents();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const trending = useMemo(() => {
     return [...events]
@@ -90,8 +116,7 @@ export default function BrowseEvents() {
             >
               <option value="all">All Eligibility</option>
               <option value="open">Open</option>
-              <option value="iiit">IIIT</option>
-              <option value="noniiit">Non-IIIT</option>
+              <option value="member-only">Member-only</option>
             </select>
 
             <div className="filter-row">
@@ -128,7 +153,9 @@ export default function BrowseEvents() {
               <span className="muted">Based on last 24h registrations</span>
             </div>
             <div className="cards">
-              {trending.map((event) => (
+              {loading && <p className="muted">Loading events...</p>}
+              {errorMsg && <p className="message-error">{errorMsg}</p>}
+              {!loading && !errorMsg && trending.map((event) => (
                 <Link key={event.id} to={`/events/${event.id}`} className="card-link">
                   <article className="card">
                     <h4>{event.eventName}</h4>
@@ -147,7 +174,7 @@ export default function BrowseEvents() {
               <span className="muted">{filtered.length} results</span>
             </div>
             <div className="cards">
-              {filtered.map((event) => (
+              {!loading && !errorMsg && filtered.map((event) => (
                 <Link key={event.id} to={`/events/${event.id}`} className="card-link">
                   <article className="card">
                     <h4>{event.eventName}</h4>

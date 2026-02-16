@@ -1,13 +1,39 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import UserNav from "../components/UserNav";
 import "../components/user.css";
-import { loadEvents } from "../utils/eventStore";
 import { loadPreferences, toggleFollowedClub } from "../utils/profileStore";
+import { getEvents } from "../services/AuthAPI";
 
 export default function ClubsOrganizers() {
-  const events = useMemo(() => loadEvents(), []);
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState("");
   const [preferences, setPreferences] = useState(() => loadPreferences());
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchEvents = async () => {
+      try {
+        const response = await getEvents();
+        if (isMounted) {
+          setEvents(response.data.events || []);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setErrorMsg("Could not load organizers from the server.");
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+    fetchEvents();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const organizers = useMemo(() => {
     const map = new Map();
@@ -40,13 +66,15 @@ export default function ClubsOrganizers() {
             </div>
 
             <div className="cards">
-              {organizers.map((org) => {
+              {loading && <p className="muted">Loading organizers...</p>}
+              {errorMsg && <p className="message-error">{errorMsg}</p>}
+              {!loading && !errorMsg && organizers.map((org) => {
                 const isFollowed = (preferences.clubs || []).includes(org.name);
                 return (
                   <article key={org.id} className="card">
                     <h4>{org.name}</h4>
-                    <p className="muted">{org.category}</p>
-                    <p className="muted">{org.description}</p>
+                    <p className="muted">{org.category || "Organizer"}</p>
+                    <p className="muted">{org.description || "No description available."}</p>
                     <div className="card-actions">
                       <Link to={`/organizers/${org.id}`} className="small-btn">
                         View Details
