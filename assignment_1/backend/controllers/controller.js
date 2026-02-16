@@ -1,5 +1,6 @@
 const User=require('../models/User');
 const Club=require('../models/Club');
+const Organizer=require('../models/Organizer');
 const jwt=require('jsonwebtoken');
 
 const token_generator = (id) => {
@@ -14,17 +15,55 @@ const register=async(req,res)=>
 {
     try
     {
-        const {firstName,lastName,email,password, role}=req.body;
-        if(!firstName||!lastName||!email||!password||!role)
+        console.log('Registration request body:', req.body);
+        const {firstName,lastName,email,password, role, college_name, phone_number}=req.body;
+        
+        console.log('Extracted fields:', {
+            firstName, lastName, email, password: '***', role, college_name, phone_number
+        });
+        
+        if(!firstName||!lastName||!email||!password||!role||!college_name||!phone_number)
         {
+            console.log('Validation failed - missing fields:', {
+                firstName: !!firstName, 
+                lastName: !!lastName, 
+                email: !!email, 
+                password: !!password, 
+                role: !!role, 
+                college_name: !!college_name, 
+                phone_number: !!phone_number
+            });
             return res.status(400).json({success:false, message:"Please provide all required fields"});
         }
+        
+        if(!['IIIT', 'nonIIIT'].includes(role))
+        {
+            console.log('Invalid role:', role);
+            return res.status(400).json({success:false, message:"Invalid role. Must be 'IIIT' or 'nonIIIT'"});
+        }
+        
+        if(role === 'IIIT') {
+            const validDomains = ['@research.iiit.ac.in', '@students.iiit.ac.in', '@iiit.ac.in'];
+            const isValidDomain = validDomains.some(domain => email.endsWith(domain));
+            
+            if(!isValidDomain) {
+                console.log('Invalid IIIT email:', email);
+                return res.status(400).json({
+                    success:false, 
+                    message:"IIIT role requires email from @research.iiit.ac.in, @students.iiit.ac.in, or @iiit.ac.in"
+                });
+            }
+        }
+        
         const existingUser=await User.findOne({email});
         if(existingUser)
         {
+            console.log('User already exists:', email);
             return res.status(400).json({success: false, message: "Account with this username already exists"});
         }
-        const user=await User.create({firstName, lastName, email, password, role: 'user'});
+        
+        console.log('Creating user...');
+        const user=await User.create({firstName, lastName, email, password, role, college_name, phone_number});
         const token=token_generator(user._id);
         res.status(201).json
         ({

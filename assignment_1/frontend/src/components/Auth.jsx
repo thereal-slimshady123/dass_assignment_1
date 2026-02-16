@@ -8,6 +8,9 @@ export default function Auth()
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState("nonIIIT");
+  const [collegeName, setCollegeName] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [msg, setMsg] = useState("");
   const [darkMode, setDarkMode]=useState(false);
@@ -22,7 +25,18 @@ export default function Auth()
         {
             loginMode=await login({email,password});
         }
-        else loginMode=await register({firstName,lastName,email,password});
+        else {
+            if(role === 'IIIT') {
+                const validDomains = ['@research.iiit.ac.in', '@students.iiit.ac.in', '@iiit.ac.in'];
+                const isValidDomain = validDomains.some(domain => email.endsWith(domain));
+                
+                if(!isValidDomain) {
+                    setMsg("IIIT role requires email from @research.iiit.ac.in, @students.iiit.ac.in, or @iiit.ac.in");
+                    return;
+                }
+            }
+            loginMode=await register({firstName,lastName,email,password,role,college_name:collegeName,phone_number:phoneNumber});
+        }
         setMsg(loginMode.data.message || "Login successful");
     }
     catch(err)
@@ -54,6 +68,38 @@ return (
               onChange={(e) => setLastName(e.target.value)}
               style={darkMode ? styles.input_dark : styles.input}
             />
+            <div style={styles.roleSelector}>
+              <label style={darkMode ? styles.roleLabel_dark : styles.roleLabel}>
+                Select Role:
+              </label>
+              <div style={styles.roleButtons}>
+                <button
+                  type="button"
+                  onClick={() => setRole("IIIT")}
+                  style={{
+                    ...(darkMode ? styles.roleButton_dark : styles.roleButton),
+                    ...(role === "IIIT" ? (darkMode ? styles.roleButtonActive_dark : styles.roleButtonActive) : {})
+                  }}
+                >
+                  IIIT
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRole("nonIIIT")}
+                  style={{
+                    ...(darkMode ? styles.roleButton_dark : styles.roleButton),
+                    ...(role === "nonIIIT" ? (darkMode ? styles.roleButtonActive_dark : styles.roleButtonActive) : {})
+                  }}
+                >
+                  Non-IIIT
+                </button>
+              </div>
+            </div>
+            {role === "IIIT" && (
+              <p style={darkMode ? styles.emailHint_dark : styles.emailHint}>
+                Use email from @research.iiit.ac.in, @students.iiit.ac.in, or @iiit.ac.in
+              </p>
+            )}
           </>
         )}
         <input
@@ -82,6 +128,25 @@ return (
             {showPass ? "Hide" : "Show"}
           </button>
         </div>
+
+        {!isLogin && (
+          <>
+            <input
+              type="text"
+              placeholder="College/Organization Name"
+              required
+              onChange={(e) => setCollegeName(e.target.value)}
+              style={darkMode ? styles.input_dark : styles.input}
+            />
+            <input
+              type="tel"
+              placeholder="Phone Number"
+              required
+              onChange={(e) => setPhoneNumber(e.target.value)}
+              style={darkMode ? styles.input_dark : styles.input}
+            />
+          </>
+        )}
 
         <button type="submit" style={darkMode ? styles.button_dark : styles.button}>
           {isLogin ? "Login" : "Register"}
@@ -369,5 +434,85 @@ const styles = {
     background: "#fff",
     borderRadius: "50%",
     boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+  },
+
+  roleSelector: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "8px",
+    marginBottom: "4px",
+  },
+
+  roleLabel: {
+    fontSize: "13px",
+    fontWeight: "500",
+    color: "#333",
+    textAlign: "left",
+  },
+
+  roleLabel_dark: {
+    fontSize: "13px",
+    fontWeight: "500",
+    color: "#ffffff",
+    textAlign: "left",
+  },
+
+  roleButtons: {
+    display: "flex",
+    gap: "8px",
+  },
+
+  roleButton: {
+    flex: 1,
+    padding: "8px",
+    background: "#f0f0f0",
+    color: "#333",
+    border: "1px solid #ccc",
+    borderRadius: "4px",
+    fontSize: "14px",
+    cursor: "pointer",
+    transition: "all 0.2s",
+  },
+
+  roleButton_dark: {
+    flex: 1,
+    padding: "8px",
+    background: "#1a1a1a",
+    color: "#ffffff",
+    border: "1px solid #444",
+    borderRadius: "4px",
+    fontSize: "14px",
+    cursor: "pointer",
+    transition: "all 0.2s",
+  },
+
+  roleButtonActive: {
+    background: "#007bff",
+    color: "#fff",
+    border: "1px solid #007bff",
+    fontWeight: "500",
+  },
+
+  roleButtonActive_dark: {
+    background: "#4dabf7",
+    color: "#000",
+    border: "1px solid #4dabf7",
+    fontWeight: "500",
+  },
+
+  emailHint: {
+    fontSize: "11px",
+    color: "#666",
+    marginTop: "-8px",
+    marginBottom: "4px",
+    textAlign: "left",
+  },
+
+  emailHint_dark: {
+    fontSize: "11px",
+    color: "#aaa",
+    marginTop: "-8px",
+    marginBottom: "4px",
+    textAlign: "left",
   }
 };

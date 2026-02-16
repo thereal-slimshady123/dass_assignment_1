@@ -27,11 +27,33 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['user', 'organizer', 'admin'],
-    default: 'user'
+    enum: ['IIIT', 'nonIIIT'],
+    required: [true, 'Role is required']
+  },
+  college_name: {
+    type: String,
+    required: [true, 'College/Organization name is required'],
+    trim: true
+  },
+  phone_number: {
+    type: String,
+    required: [true, 'Phone number is required'],
+    trim: true
   }
-}, {
+},
+{
   timestamps: true
+});
+
+userSchema.pre('validate', function() {
+  if (this.role === 'IIIT') {
+    const validDomains = ['@research.iiit.ac.in', '@students.iiit.ac.in', '@iiit.ac.in'];
+    const isValidDomain = validDomains.some(domain => this.email.endsWith(domain));
+    
+    if (!isValidDomain) {
+      this.invalidate('email', 'IIIT role requires email from @research.iiit.ac.in, @students.iiit.ac.in, or @iiit.ac.in');
+    }
+  }
 });
 
 userSchema.pre('save', async function() {

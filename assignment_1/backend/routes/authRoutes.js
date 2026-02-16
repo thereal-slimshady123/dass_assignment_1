@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { register, login, createOrganizer, deleteOrganizer, getMe, addClub, deleteClub } = require('../controllers/authController');
-const { protect, restrictTo } = require('../middleware/authMiddleware');
+const { register, login, createOrganizer, deleteOrganizer, getMe, addClub, deleteClub } = require('../controllers/controller');
+const { protect, restrictTo } = require('../middleware/middleware');
 router.post('/register', register);
 router.post('/login', login);
 router.get('/me', protect, getMe);

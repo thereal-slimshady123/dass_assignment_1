@@ -8,21 +8,24 @@ export default function Login()
   const navigate = useNavigate();
   const [firstName, setFirstName]=useState("");
   const [lastName, setLastName]=useState("");
-  const [isLogin, setIsLogin] = useState(true);
+  const [isLogin, setIsLogin] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole]=useState("user");
+  const [role, setRole]=useState("nonIIIT");
+  const [collegeName, setCollegeName] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [msg, setMsg] = useState("");
   const [darkMode, setDarkMode]=useState(true);
 
 
-  const emailValidator = (email) => {
-    const emailRegex =
-      /^[a-zA-Z0-9._%+-]+@(research\.iiit\.ac\.in|students\.iiit\.ac\.in|iiit\.ac\.in)$/;
-
-    if (!emailRegex.test(email)) {
-      throw new Error("Please use a valid IIIT email address");
+  const emailValidator = (email, userRole) => {
+    if (userRole === 'IIIT') {
+      const emailRegex =
+        /^[a-zA-Z0-9._%+-]+@(research\.iiit\.ac\.in|students\.iiit\.ac\.in|iiit\.ac\.in)$/;
+      if (!emailRegex.test(email)) {
+        throw new Error("IIIT role requires email from @research.iiit.ac.in, @students.iiit.ac.in, or @iiit.ac.in");
+      }
     }
   };
 
@@ -32,15 +35,29 @@ export default function Login()
     e.preventDefault();
     try
     {
-        emailValidator(email);
+        if (!isLogin) {
+          emailValidator(email, role);
+        }
         let loginMode;
         if(isLogin)
         {
-            loginMode=await login({email,password, role});
+            loginMode=await login({email,password});
         }
-        else loginMode=await register({firstName,lastName,email,password, role});
-        const userRole = loginMode.data.user?.role || 'user';
+        else {
+            loginMode=await register({
+              firstName,
+              lastName,
+              email,
+              password,
+              role,
+              college_name: collegeName,
+              phone_number: phoneNumber
+            });
+        }
+        
+        const userRole = loginMode.data.user?.role || 'nonIIIT';
         setMsg(`Login successful! Your role is: ${userRole}`);
+        
         try {
           if (loginMode.data?.user) {
             localStorage.setItem('user', JSON.stringify(loginMode.data.user));
@@ -49,9 +66,7 @@ export default function Login()
             localStorage.setItem('token', loginMode.data.token);
           }
         } catch {}
-
-        // redirect based on role
-        if (userRole === 'user') {
+        if (userRole === 'IIIT' || userRole === 'nonIIIT') {
           navigate('/user');
         } else if (userRole === 'admin') {
           navigate('/admin');
@@ -88,6 +103,32 @@ return (
               onChange={(e) => setLastName(e.target.value)}
               className={darkMode ? "input_dark" : "input"}
             />
+            <div className="roleSelector">
+              <label className={darkMode ? "roleLabel_dark" : "roleLabel"}>
+                Select Role:
+              </label>
+              <div className="roleButtons">
+                <button
+                  type="button"
+                  onClick={() => setRole("IIIT")}
+                  className={`${darkMode ? "roleButton_dark" : "roleButton"} ${role === "IIIT" ? (darkMode ? "roleButtonActive_dark" : "roleButtonActive") : ""}`}
+                >
+                  IIIT
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRole("nonIIIT")}
+                  className={`${darkMode ? "roleButton_dark" : "roleButton"} ${role === "nonIIIT" ? (darkMode ? "roleButtonActive_dark" : "roleButtonActive") : ""}`}
+                >
+                  Non-IIIT
+                </button>
+              </div>
+            </div>
+            {role === "IIIT" && (
+              <p className={darkMode ? "emailHint_dark" : "emailHint"}>
+                Use email from @research.iiit.ac.in, @students.iiit.ac.in, or @iiit.ac.in
+              </p>
+            )}
           </>
         )}
         <input
@@ -116,6 +157,27 @@ return (
             {showPass ? "Hide" : "Show"}
           </button>
         </div>
+
+        {!isLogin && (
+          <>
+            <input
+              type="text"
+              placeholder="College/Organization Name"
+              required
+              value={collegeName}
+              onChange={(e) => setCollegeName(e.target.value)}
+              className={darkMode ? "input_dark" : "input"}
+            />
+            <input
+              type="tel"
+              placeholder="Phone Number"
+              required
+              value={phoneNumber}
+              onChange={(e) => setPhoneNumber(e.target.value)}
+              className={darkMode ? "input_dark" : "input"}
+            />
+          </>
+        )}
 
         <button type="submit" className={darkMode ? "button_dark" : "button"}>
           {isLogin ? "Login" : "Register"}
