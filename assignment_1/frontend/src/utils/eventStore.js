@@ -1,4 +1,5 @@
 import seedEvents from "./eventsData";
+import QRCode from "qrcode";
 
 const EVENTS_KEY = "eventsData";
 const REG_KEY = "registrations";
@@ -37,36 +38,22 @@ export const saveRegistrations = (records) => {
 export const getEventById = (events, id) =>
   events.find((event) => event.id === id);
 
-const hashString = (value) => {
-  let hash = 0;
-  for (let i = 0; i < value.length; i += 1) {
-    hash = (hash * 31 + value.charCodeAt(i)) % 2147483647;
-  }
-  return hash;
-};
-
-export const buildQrSvg = (value) => {
-  const size = 21;
-  const cell = 6;
-  const seed = hashString(value);
-  const squares = [];
-  for (let row = 0; row < size; row += 1) {
-    for (let col = 0; col < size; col += 1) {
-      const shouldFill = ((seed + row * 7 + col * 13) % 5) === 0;
-      if (shouldFill) {
-        squares.push(
-          `<rect x=\"${col * cell}\" y=\"${row * cell}\" width=\"${cell}\" height=\"${cell}\" />`
-        );
+export const buildQrCode = async (value) => {
+  try {
+    const qrDataUrl = await QRCode.toDataURL(value, {
+      width: 200,
+      margin: 2,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
       }
-    }
+    });
+    return qrDataUrl;
+  } catch (error) {
+    console.error('QR Code generation failed:', error);
+    // Return a placeholder if QR generation fails
+    return 'data:image/svg+xml;charset=utf-8,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect width="200" height="200" fill="%23f0f0f0"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%23999"%3EQR Error%3C/text%3E%3C/svg%3E';
   }
-
-  const svg = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>` +
-    `<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"${size * cell}\" height=\"${size * cell}\" viewBox=\"0 0 ${size * cell} ${size * cell}\" fill=\"#111\">` +
-    squares.join("") +
-    `</svg>`;
-
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 };
 
 export const generateTicketId = () => {
@@ -75,9 +62,9 @@ export const generateTicketId = () => {
   return `TKT-${stamp}-${rand}`;
 };
 
-export const addRegistration = ({ event, user, teamName }) => {
+export const addRegistration = async ({ event, user, teamName }) => {
   const ticketId = generateTicketId();
-  const qr = buildQrSvg(ticketId);
+  const qr = await buildQrCode(ticketId);
 
   const record = {
     id: ticketId,

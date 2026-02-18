@@ -67,7 +67,7 @@ export default function EventDetails() {
     ? (event.stock ?? 0) <= 0
     : (event.reg_limit ?? 0) <= 0;
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     setMsg("");
     if (deadlinePassed || outOfStock) {
       setMsg("Registration is closed for this event.");
@@ -80,7 +80,7 @@ export default function EventDetails() {
       return;
     }
 
-    addRegistration({ event, user, teamName });
+    await addRegistration({ event, user, teamName });
     const updated = updateEventOnRegister(event);
     setEvent(updated);
 
