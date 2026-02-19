@@ -3,6 +3,7 @@ const Admin=require('../models/admin');
 const Club=require('../models/Club');
 const Organizer=require('../models/Organizer');
 const Event=require('../models/events');
+const PasswordChangeRequest=require('../models/PasswordChangeRequest');
 const jwt=require('jsonwebtoken');
 const crypto = require('crypto');
 const { sendRegistrationEmail, sendPasswordResetEmail, sendEventRegistrationEmail, sendPasswordChangeEmail } = require('../config/email');
@@ -135,6 +136,13 @@ const login=async(req,res)=>
         {
             return res.status(401).json({success: false, message: "Invalid credentials"});
         }
+        
+        // Check if user is disabled or archived
+        if(validateUser.status && validateUser.status !== 'active')
+        {
+            return res.status(403).json({success: false, message: "Account is disabled or archived. Please contact admin."});
+        }
+        
         const isPasswordCorrect = await validateUser.comparePassword(password);
         if(!isPasswordCorrect)
         {
@@ -165,12 +173,28 @@ const login=async(req,res)=>
 
 const createOrganizer = async (req, res) => {
   try {
-    const { firstName, lastName, email, password } = req.body;
+    const { firstName, lastName, email, password, autoGenerate } = req.body;
     
-    if (!firstName || !lastName || !email || !password) {
+    if (!firstName || !lastName || !email) {
       return res.status(400).json({
         success: false, 
         message: "Please provide all required fields"
+      });
+    }
+
+    // Auto-generate password if requested
+    let finalPassword = password;
+    let generatedPassword = null;
+    
+    if (autoGenerate || !password) {
+      generatedPassword = crypto.randomBytes(8).toString('hex');
+      finalPassword = generatedPassword;
+    }
+
+    if (!finalPassword) {
+      return res.status(400).json({
+        success: false, 
+        message: "Password is required"
       });
     }
 
@@ -187,9 +211,13 @@ const createOrganizer = async (req, res) => {
       firstName, 
       lastName, 
       email, 
-      password, 
-      role: 'organizer'
+      password: finalPassword, 
+      role: 'organizer',
+      status: 'active'
     });
+
+    // Send credentials email
+    sendRegistrationEmail(email, firstName, generatedPassword);
 
     res.status(201).json
     ({
@@ -200,7 +228,8 @@ const createOrganizer = async (req, res) => {
         firstName: organizer.firstName,
         lastName: organizer.lastName,
         email: organizer.email,
-        role: organizer.role
+        role: organizer.role,
+        generatedPassword: generatedPassword // Send generated password to admin
       }
     });
   } catch (error) {
@@ -543,16 +572,17 @@ const forgotPassword = async (req, res) => {
 // Change password - with validation email
 const changePassword = async (req, res) => {
   try {
-    const { userId, currentPassword, newPassword, confirmPassword } = req.body;
+    const { userId, email, currentPassword, newPassword, confirmPassword, reason } = req.body;
 
-    if (!userId || !currentPassword || !newPassword || !confirmPassword) {
+    if ((!userId && !email) || !currentPassword || !newPassword) {
       return res.status(400).json({
         success: false,
         message: 'Please provide all required fields'
       });
     }
 
-    if (newPassword !== confirmPassword) {
+    // If confirmPassword is provided, validate it matches
+    if (confirmPassword && newPassword !== confirmPassword) {
       return res.status(400).json({
         success: false,
         message: 'New password and confirmation do not match'
@@ -566,7 +596,14 @@ const changePassword = async (req, res) => {
       });
     }
 
-    const user = await User.findById(userId);
+    // Find user by userId or email
+    let user;
+    if (userId) {
+      user = await User.findById(userId);
+    } else if (email) {
+      user = await User.findOne({ email });
+    }
+    
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -582,7 +619,40 @@ const changePassword = async (req, res) => {
       });
     }
 
-    // Update password
+    // If user is organizer, create a password change request instead of changing directly
+    if (user.role === 'organizer') {
+      // Check if there's already a pending request
+      const existingRequest = await PasswordChangeRequest.findOne({
+        userId: user._id,
+        status: 'pending'
+      });
+
+      if (existingRequest) {
+        return res.status(400).json({
+          success: false,
+          message: 'You already have a pending password change request. Please wait for admin approval.'
+        });
+      }
+
+      // Create password change request
+      const passwordChangeRequest = await PasswordChangeRequest.create({
+        userId: user._id,
+        userEmail: user.email,
+        userName: `${user.firstName} ${user.lastName}`,
+        userRole: user.role,
+        currentPassword: currentPassword, // Store for verification when admin approves
+        newPassword: newPassword, // Store temporarily (will be hashed when approved)
+        reason: reason || 'Password change requested'
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Password change request submitted successfully. Please wait for admin approval.',
+        requestId: passwordChangeRequest._id
+      });
+    }
+
+    // For non-organizer users (regular users), change password directly
     user.password = newPassword;
     await user.save();
 
@@ -721,6 +791,315 @@ const updateOrganizerProfile = async (req, res) => {
   }
 };
 
+// Get all organizers
+const getAllOrganizers = async (req, res) => {
+  try {
+    const organizers = await User.find({ role: 'organizer' }).select('-password');
+    res.status(200).json({
+      success: true,
+      count: organizers.length,
+      organizers
+    });
+  } catch (error) {
+    console.error('Get all organizers error:', error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Get all clubs
+const getAllClubs = async (req, res) => {
+  try {
+    const clubs = await Club.find({});
+    res.status(200).json({
+      success: true,
+      count: clubs.length,
+      clubs
+    });
+  } catch (error) {
+    console.error('Get all clubs error:', error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Update organizer status
+const updateOrganizerStatus = async (req, res) => {
+  try {
+    const { email, status } = req.body;
+    
+    if (!email || !status) {
+      return res.status(400).json({
+        success: false, 
+        message: "Please provide email and status"
+      });
+    }
+
+    if (!['active', 'disabled', 'archived'].includes(status)) {
+      return res.status(400).json({
+        success: false, 
+        message: "Invalid status. Must be 'active', 'disabled', or 'archived'"
+      });
+    }
+
+    const organizer = await User.findOne({ email, role: 'organizer' });
+    
+    if (!organizer) {
+      return res.status(404).json({
+        success: false, 
+        message: "Organizer not found"
+      });
+    }
+
+    organizer.status = status;
+    await organizer.save();
+
+    res.status(200).json({
+      success: true, 
+      message: `Organizer status updated to ${status}`,
+      organizer: {
+        id: organizer._id,
+        email: organizer.email,
+        status: organizer.status
+      }
+    });
+  } catch (error) {
+    console.error('Update organizer status error:', error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Update club status
+const updateClubStatus = async (req, res) => {
+  try {
+    const { clubName, status } = req.body;
+    
+    if (!clubName || !status) {
+      return res.status(400).json({
+        success: false, 
+        message: "Please provide club name and status"
+      });
+    }
+
+    if (!['active', 'disabled', 'archived'].includes(status)) {
+      return res.status(400).json({
+        success: false, 
+        message: "Invalid status. Must be 'active', 'disabled', or 'archived'"
+      });
+    }
+
+    const club = await Club.findOne({ clubName });
+    
+    if (!club) {
+      return res.status(404).json({
+        success: false, 
+        message: "Club not found"
+      });
+    }
+
+    club.status = status;
+    await club.save();
+
+    res.status(200).json({
+      success: true, 
+      message: `Club status updated to ${status}`,
+      club: {
+        id: club._id,
+        clubName: club.clubName,
+        status: club.status
+      }
+    });
+  } catch (error) {
+    console.error('Update club status error:', error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Get all password reset requests
+const getPasswordResetRequests = async (req, res) => {
+  try {
+    const usersWithResetTokens = await User.find({
+      resetPasswordToken: { $ne: null },
+      resetPasswordExpire: { $gt: Date.now() }
+    }).select('firstName lastName email role resetPasswordExpire createdAt');
+
+    res.status(200).json({
+      success: true,
+      count: usersWithResetTokens.length,
+      requests: usersWithResetTokens
+    });
+  } catch (error) {
+    console.error('Get password reset requests error:', error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Clear password reset request
+const clearPasswordResetRequest = async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({
+        success: false, 
+        message: "Please provide email"
+      });
+    }
+
+    const user = await User.findOne({ email });
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false, 
+        message: "User not found"
+      });
+    }
+
+    user.resetPasswordToken = null;
+    user.resetPasswordExpire = null;
+    await user.save();
+
+    res.status(200).json({
+      success: true, 
+      message: "Password reset request cleared"
+    });
+  } catch (error) {
+    console.error('Clear password reset request error:', error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Get all password change requests
+const getPasswordChangeRequests = async (req, res) => {
+  try {
+    const requests = await PasswordChangeRequest.find({ status: 'pending' })
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: requests.length,
+      requests
+    });
+  } catch (error) {
+    console.error('Get password change requests error:', error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Approve password change request
+const approvePasswordChangeRequest = async (req, res) => {
+  try {
+    const { requestId, adminNotes } = req.body;
+    
+    if (!requestId) {
+      return res.status(400).json({
+        success: false, 
+        message: "Please provide request ID"
+      });
+    }
+
+    const request = await PasswordChangeRequest.findById(requestId);
+    
+    if (!request) {
+      return res.status(404).json({
+        success: false, 
+        message: "Request not found"
+      });
+    }
+
+    if (request.status !== 'pending') {
+      return res.status(400).json({
+        success: false, 
+        message: "Request has already been processed"
+      });
+    }
+
+    // Find the user
+    const user = await User.findById(request.userId);
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false, 
+        message: "User not found"
+      });
+    }
+
+    // Verify current password is still correct
+    const isPasswordCorrect = await user.comparePassword(request.currentPassword);
+    if (!isPasswordCorrect) {
+      return res.status(400).json({
+        success: false, 
+        message: "Current password in request is no longer valid. Request cannot be approved."
+      });
+    }
+
+    // Update user password
+    user.password = request.newPassword;
+    await user.save();
+
+    // Update request status
+    request.status = 'approved';
+    request.processedBy = req.user.email || 'admin';
+    request.processedAt = new Date();
+    request.adminNotes = adminNotes || '';
+    await request.save();
+
+    // Send confirmation email
+    await sendPasswordChangeEmail(user.email, user.firstName);
+
+    res.status(200).json({
+      success: true, 
+      message: "Password change request approved and password updated successfully"
+    });
+  } catch (error) {
+    console.error('Approve password change request error:', error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Reject password change request
+const rejectPasswordChangeRequest = async (req, res) => {
+  try {
+    const { requestId, adminNotes } = req.body;
+    
+    if (!requestId) {
+      return res.status(400).json({
+        success: false, 
+        message: "Please provide request ID"
+      });
+    }
+
+    const request = await PasswordChangeRequest.findById(requestId);
+    
+    if (!request) {
+      return res.status(404).json({
+        success: false, 
+        message: "Request not found"
+      });
+    }
+
+    if (request.status !== 'pending') {
+      return res.status(400).json({
+        success: false, 
+        message: "Request has already been processed"
+      });
+    }
+
+    // Update request status
+    request.status = 'rejected';
+    request.processedBy = req.user.email || 'admin';
+    request.processedAt = new Date();
+    request.adminNotes = adminNotes || 'Request rejected by admin';
+    await request.save();
+
+    res.status(200).json({
+      success: true, 
+      message: "Password change request rejected"
+    });
+  } catch (error) {
+    console.error('Reject password change request error:', error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -739,5 +1118,14 @@ module.exports = {
   changePassword,
   sendEventRegistrationEmailHandler,
   updateOrganizerProfile,
-  incrementEventRegistration
+  incrementEventRegistration,
+  getAllOrganizers,
+  getAllClubs,
+  updateOrganizerStatus,
+  updateClubStatus,
+  getPasswordResetRequests,
+  clearPasswordResetRequest,
+  getPasswordChangeRequests,
+  approvePasswordChangeRequest,
+  rejectPasswordChangeRequest
 };

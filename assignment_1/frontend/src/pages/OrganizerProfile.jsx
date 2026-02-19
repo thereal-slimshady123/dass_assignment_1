@@ -24,7 +24,8 @@ export default function OrganizerProfile() {
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    reason: ''
   });
 
   const [showPasswordChange, setShowPasswordChange] = useState(false);
@@ -182,19 +183,20 @@ export default function OrganizerProfile() {
         body: JSON.stringify({
           email: user.email,
           currentPassword: passwordData.currentPassword,
-          newPassword: passwordData.newPassword
+          newPassword: passwordData.newPassword,
+          reason: passwordData.reason
         })
       });
 
       const data = await response.json();
       
       if (response.ok) {
-        setMessage('✓ Password changed successfully!');
-        setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+        setMessage('✓ Password change request submitted successfully! Please wait for admin approval.');
+        setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '', reason: '' });
         setShowPasswordChange(false);
-        setTimeout(() => setMessage(''), 3000);
+        setTimeout(() => setMessage(''), 5000);
       } else {
-        setMessage(data.message || 'Failed to change password');
+        setMessage(data.message || 'Failed to submit password change request');
       }
     } catch (error) {
       setMessage('Error: ' + error.message);
@@ -417,20 +419,40 @@ export default function OrganizerProfile() {
                 style={inputStyle(darkMode)}
               />
 
+              <label>Reason for Password Change (Optional)</label>
+              <textarea
+                placeholder="Explain why you need to change your password"
+                value={passwordData.reason}
+                onChange={(e) => handlePasswordChange('reason', e.target.value)}
+                style={{ ...inputStyle(darkMode), minHeight: '80px', resize: 'vertical' }}
+              />
+
+              <div style={{ 
+                padding: '12px', 
+                marginTop: '10px',
+                backgroundColor: darkMode ? '#3a3a3a' : '#fff3cd',
+                color: darkMode ? '#ffc107' : '#856404',
+                borderRadius: '5px',
+                border: '1px solid #ffc107',
+                fontSize: '13px'
+              }}>
+                ⚠️ <strong>Note:</strong> Password change requests require admin approval. Admin will review and approve/reject your request.
+              </div>
+
               <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
                 <button 
                   type="submit"
                   className="primary-btn"
                   disabled={loading}
                 >
-                  {loading ? 'Changing...' : '✓ Change Password'}
+                  {loading ? 'Submitting...' : '📝 Submit Request'}
                 </button>
                 <button 
                   type="button"
                   className="secondary-btn"
                   onClick={() => {
                     setShowPasswordChange(false);
-                    setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+                    setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '', reason: '' });
                   }}
                 >
                   Cancel

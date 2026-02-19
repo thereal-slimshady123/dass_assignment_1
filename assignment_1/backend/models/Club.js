@@ -11,6 +11,11 @@ const clubSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Description is required'],
     trim: true
+  },
+  status: {
+    type: String,
+    enum: ['active', 'disabled', 'archived'],
+    default: 'active'
   }
 }, {
   timestamps: true

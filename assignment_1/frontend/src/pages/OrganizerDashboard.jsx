@@ -114,14 +114,6 @@ export default function OrganizerDashboard() {
               <p className="stat-number">{stats.total}</p>
             </div>
             <div className={`stat-card ${darkMode ? 'stat-card-dark' : ''}`}>
-              <h3>Total Registrations</h3>
-              <p className="stat-number">{stats.totalRegistrations}</p>
-            </div>
-            <div className={`stat-card ${darkMode ? 'stat-card-dark' : ''}`}>
-              <h3>Total Revenue</h3>
-              <p className="stat-number">₹{stats.totalRevenue.toLocaleString()}</p>
-            </div>
-            <div className={`stat-card ${darkMode ? 'stat-card-dark' : ''}`}>
               <h3>Event Status</h3>
               <p className="stat-detail">
                 {stats.published} Published • {stats.ongoing} Ongoing • {stats.closed} Closed

@@ -94,3 +94,84 @@ export const getEventById = (id) =>
 
 export const getClubs = () =>
   axios.get(`${API}/clubs`);
+
+export const getAllOrganizers = () => {
+  const token = localStorage.getItem('token');
+  return axios.get(`${API}/organizers`, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+};
+
+export const getAllClubs = () => {
+  const token = localStorage.getItem('token');
+  return axios.get(`${API}/all-clubs`, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+};
+
+export const updateOrganizerStatus = (data) => {
+  const token = localStorage.getItem('token');
+  return axios.patch(`${API}/update-organizer-status`, data, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+};
+
+export const updateClubStatus = (data) => {
+  const token = localStorage.getItem('token');
+  return axios.patch(`${API}/update-club-status`, data, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+};
+
+export const getPasswordResetRequests = () => {
+  const token = localStorage.getItem('token');
+  return axios.get(`${API}/password-reset-requests`, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+};
+
+export const clearPasswordResetRequest = (data) => {
+  const token = localStorage.getItem('token');
+  return axios.post(`${API}/clear-password-reset-request`, data, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+};
+
+export const getPasswordChangeRequests = () => {
+  const token = localStorage.getItem('token');
+  return axios.get(`${API}/password-change-requests`, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+};
+
+export const approvePasswordChangeRequest = (data) => {
+  const token = localStorage.getItem('token');
+  return axios.post(`${API}/approve-password-change-request`, data, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+};
+
+export const rejectPasswordChangeRequest = (data) => {
+  const token = localStorage.getItem('token');
+  return axios.post(`${API}/reject-password-change-request`, data, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+};

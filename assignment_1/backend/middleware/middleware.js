@@ -35,6 +35,13 @@ const protect = async (req, res, next) => {
         adminName: admin.adminName
       };
     } else {
+      // Check if user is disabled or archived
+      if (foundUser.status && foundUser.status !== 'active') {
+        return res.status(403).json({ 
+          success: false, 
+          message: 'Account is disabled or archived. Please contact admin.' 
+        });
+      }
       req.user = foundUser;
     }
 
