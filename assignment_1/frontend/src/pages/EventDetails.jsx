@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import UserNav from "../components/UserNav";
 import "../components/user.css";
-import { addRegistration, updateEventOnRegister } from "../utils/eventStore";
+import { addRegistration, updateEventOnRegister, loadRegistrations } from "../utils/eventStore";
 import { loadUser } from "../utils/profileStore";
 import { getEventById } from "../services/AuthAPI";
 
@@ -14,6 +14,7 @@ export default function EventDetails() {
   const [errorMsg, setErrorMsg] = useState("");
   const [teamName, setTeamName] = useState("");
   const [msg, setMsg] = useState("");
+  const [isRegistered, setIsRegistered] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -22,6 +23,16 @@ export default function EventDetails() {
         const response = await getEventById(eventId);
         if (isMounted) {
           setEvent(response.data.event || null);
+          
+          // Check if user already registered
+          const user = loadUser();
+          if (user) {
+            const registrations = loadRegistrations();
+            const alreadyRegistered = registrations.some(
+              reg => reg.eventId === eventId && reg.participant.email === user.email
+            );
+            setIsRegistered(alreadyRegistered);
+          }
         }
       } catch (error) {
         if (isMounted) {
@@ -153,14 +164,18 @@ export default function EventDetails() {
 
             {deadlinePassed && <p className="message-error">Registration deadline has passed.</p>}
             {outOfStock && <p className="message-error">Registrations or stock are exhausted.</p>}
+            {isRegistered && <p className="message-success">✓ You are already registered for this event</p>}
 
             <button
               type="button"
-              className="primary-btn"
-              onClick={handleRegister}
+              className={isRegistered ? "secondary-btn" : "primary-btn"}
+              onClick={isRegistered ? () => navigate('/user') : handleRegister}
               disabled={deadlinePassed || outOfStock}
             >
-              {event.type === "merchandise" ? "Purchase & Get Ticket" : "Register Now"}
+              {isRegistered 
+                ? "Already Registered - View Ticket" 
+                : event.type === "merchandise" ? "Purchase & Get Ticket" : "Register Now"
+              }
             </button>
           </div>
         </section>

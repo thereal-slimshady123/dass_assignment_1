@@ -8,6 +8,27 @@ export const login = (data) =>
 export const register = (data) =>
   axios.post(`${API}/register`, data);
 
+export const forgotPassword = (data) =>
+  axios.post(`${API}/forgot-password`, data);
+
+export const resetPassword = (data) =>
+  axios.post(`${API}/reset-password`, data);
+
+export const changePassword = (data) =>
+  axios.post(`${API}/change-password`, data);
+
+export const sendEventRegistrationEmail = (data) =>
+  axios.post(`${API}/send-event-email`, data);
+
+export const updateOrganizerProfile = (data) => {
+  const token = localStorage.getItem('token');
+  return axios.post(`${API}/update-organizer-profile`, data, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+};
+
 export const createOrganizer = (data) => {
   const token = localStorage.getItem('token');
   return axios.post(`${API}/create-organizer`, data, {

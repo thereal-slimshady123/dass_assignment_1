@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 
 const userSchema = new mongoose.Schema({
   firstName: {
@@ -45,6 +46,46 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: function() { return this.role === 'user'; },
     trim: true
+  },
+  resetPasswordToken: {
+    type: String,
+    default: null
+  },
+  resetPasswordExpire: {
+    type: Date,
+    default: null
+  },
+  // Organizer fields
+  organizerName: {
+    type: String,
+    trim: true,
+    required: function() { return this.role === 'organizer'; }
+  },
+  organizerCategory: {
+    type: String,
+    enum: ['club', 'organization', 'community', 'business', 'other'],
+    default: 'club'
+  },
+  organizerDescription: {
+    type: String,
+    trim: true
+  },
+  contactEmail: {
+    type: String,
+    trim: true
+  },
+  contactPhone: {
+    type: String,
+    trim: true
+  },
+  discordWebhookUrl: {
+    type: String,
+    trim: true,
+    default: null
+  },
+  enableDiscordNotifications: {
+    type: Boolean,
+    default: false
   }
 },
 {
@@ -69,6 +110,14 @@ userSchema.pre('save', async function() {
 
 userSchema.methods.comparePassword = async function(candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
+};
+
+// Generate password reset token
+userSchema.methods.generatePasswordResetToken = function() {
+  const resetToken = crypto.randomBytes(32).toString('hex');
+  this.resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+  this.resetPasswordExpire = Date.now() + 60 * 60 * 1000; // 1 hour
+  return resetToken;
 };
 
 module.exports = mongoose.model('User', userSchema);

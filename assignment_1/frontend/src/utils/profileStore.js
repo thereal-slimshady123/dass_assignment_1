@@ -32,3 +32,15 @@ export const toggleFollowedClub = (clubName) => {
   savePreferences(next);
   return next;
 };
+
+// Registration management
+const REG_KEY = "registrations";
+
+export const loadRegistrations = () => {
+  const stored = safeParse(localStorage.getItem(REG_KEY), []);
+  return Array.isArray(stored) ? stored : [];
+};
+
+export const saveRegistrations = (records) => {
+  localStorage.setItem(REG_KEY, JSON.stringify(records));
+};

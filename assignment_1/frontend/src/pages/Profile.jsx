@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import UserNav from "../components/UserNav";
 import "../components/user.css";
 import { loadPreferences, loadUser, savePreferences, saveUser } from "../utils/profileStore";
-import { getClubs } from "../services/AuthAPI";
+import { getClubs, changePassword } from "../services/AuthAPI";
 
 const interestOptions = [
   "Music",
@@ -82,31 +82,44 @@ export default function Profile() {
     setMsg("Profile updated successfully.");
   };
 
-  const changePassword = () => {
+  const changePassword = async () => {
     setPassMsg("");
     if (!currentPass || !newPass || !confirmPass) {
       setPassMsg("Please fill all password fields.");
       return;
     }
-    const storedPass = localStorage.getItem("auth_password");
-    if (storedPass && storedPass !== currentPass) {
-      setPassMsg("Current password is incorrect.");
+
+    if (newPass.length < 6) {
+      setPassMsg("New password should be at least 6 characters.");
       return;
     }
-    if (newPass.length < 8) {
-      setPassMsg("New password should be at least 8 characters.");
-      return;
-    }
+
     if (newPass !== confirmPass) {
       setPassMsg("New password and confirmation do not match.");
       return;
     }
 
-    localStorage.setItem("auth_password", newPass);
-    setCurrentPass("");
-    setNewPass("");
-    setConfirmPass("");
-    setPassMsg("Password updated successfully.");
+    try {
+      const user = initialUser;
+      if (!user || !user.id) {
+        setPassMsg("Please sign in to change your password.");
+        return;
+      }
+
+      const response = await changePassword({
+        userId: user.id,
+        currentPassword: currentPass,
+        newPassword: newPass,
+        confirmPassword: confirmPass
+      });
+
+      setPassMsg(response.data.message);
+      setCurrentPass("");
+      setNewPass("");
+      setConfirmPass("");
+    } catch (error) {
+      setPassMsg(error.response?.data?.message || "Failed to change password. Please try again.");
+    }
   };
 
   return (

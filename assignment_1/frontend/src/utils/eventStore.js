@@ -1,5 +1,8 @@
 import seedEvents from "./eventsData";
 import QRCode from "qrcode";
+import axios from "axios";
+
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000/api";
 
 const EVENTS_KEY = "eventsData";
 const REG_KEY = "registrations";
@@ -68,7 +71,7 @@ export const addRegistration = async ({ event, user, teamName }) => {
 
   const record = {
     id: ticketId,
-    eventId: event.id,
+    eventId: event.id || event._id,
     eventName: event.eventName,
     eventType: event.type,
     organizer: event.organizer?.name || "Unknown",
@@ -89,6 +92,28 @@ export const addRegistration = async ({ event, user, teamName }) => {
   const registrations = loadRegistrations();
   registrations.unshift(record);
   saveRegistrations(registrations);
+
+  // Increment event registration count in backend
+  try {
+    await axios.post(`${API_BASE}/auth/increment-event-registration`, {
+      eventId: event._id || event.id
+    });
+  } catch (error) {
+    console.error('Failed to update event registration count:', error);
+  }
+
+  // Send event registration confirmation email
+  try {
+    await axios.post(`${API_BASE}/auth/send-event-email`, {
+      email: user?.email,
+      firstName: user?.firstName,
+      eventName: event.eventName,
+      eventDate: new Date(event.event_start).toLocaleString()
+    });
+  } catch (error) {
+    console.error('Failed to send event registration email:', error);
+    // Don't fail the registration if email fails
+  }
 
   return record;
 };

@@ -24,6 +24,12 @@ const eventSchema=new mongoose.Schema({
         default: 'open',
         trim: true
     },
+    status:{
+        type: String,
+        enum: ['draft', 'published', 'ongoing', 'completed'],
+        default: 'draft',
+        required: true
+    },
     reg_deadline:{
         type: Date,
         required: [true, 'Registration deadline is required']
@@ -46,6 +52,10 @@ const eventSchema=new mongoose.Schema({
         required: [true, 'Registration fee is required'],
         default: 0
     },
+    reg_count:{
+        type: Number,
+        default: 0
+    },
     organizer_id:{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
@@ -55,6 +65,19 @@ const eventSchema=new mongoose.Schema({
         type: [String],
         required: [true, 'At least one event tag is required'],
         default: ["fun!"]
+    },
+    customForm:{
+        type: mongoose.Schema.Types.Mixed,
+        default: [{
+            id: 1,
+            type: 'text',
+            label: 'Full Name',
+            required: true
+        }]
+    },
+    createdAt:{
+        type: Date,
+        default: Date.now
     }
 });
 

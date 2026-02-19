@@ -1,8 +1,10 @@
 import {useState} from "react";
 import {login, register} from "../services/AuthAPI.js";
+import { useNavigate } from "react-router-dom";
 
 export default function Auth()
 {
+  const navigate = useNavigate();
   const [firstName, setFirstName]=useState("");
   const [lastName, setLastName]=useState("");
   const [isLogin, setIsLogin] = useState(true);
@@ -158,6 +160,12 @@ return (
           ? "New user? Register here"
           : "Already have an account? Login"}
       </p>
+
+      {isLogin && (
+        <p onClick={() => navigate('/forgot-password')} style={{...darkMode ? styles.toggle_dark : styles.toggle, cursor: 'pointer', fontSize: '0.9em'}}>
+          Forgot your password?
+        </p>
+      )}
 
       {msg && <p style={styles.message}>{msg}</p>}
     </div>

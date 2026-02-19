@@ -597,3 +597,218 @@
         font-size: 13px;
     }
 }
+
+/* ==================== Step Indicator ==================== */
+.step-indicator {
+    display: flex;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-xl);
+    flex-wrap: wrap;
+}
+
+.step-indicator .step {
+    flex: 1;
+    min-width: 150px;
+    padding: var(--spacing-md);
+    border: 2px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--card);
+    color: var(--text);
+    cursor: pointer;
+    font-weight: 500;
+    transition: var(--transition-fast);
+    font-family: inherit;
+}
+
+.step-indicator .step:hover {
+    border-color: var(--accent-secondary);
+}
+
+.step-indicator .step.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+}
+
+/* ==================== Review Section ==================== */
+.review-section {
+    margin-bottom: var(--spacing-lg);
+}
+
+.review-section h4 {
+    margin-bottom: var(--spacing-md);
+    color: var(--text);
+    font-size: 1rem;
+}
+
+.review-section p {
+    margin: var(--spacing-sm) 0;
+    color: var(--text);
+}
+
+.review-section strong {
+    color: var(--accent);
+    font-weight: 600;
+}
+
+/* ==================== Form Field Container ==================== */
+.form-field-container {
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--card);
+}
+
+/* ==================== Wide Main ==================== */
+.user-main-wide {
+    max-width: 900px;
+}
+
+/* ==================== Muted Text ==================== */
+.muted {
+    color: var(--muted);
+    font-size: 0.875rem;
+}
+
+/* ==================== Stats Grid ==================== */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--spacing-lg);
+    margin-bottom: var(--spacing-xl);
+}
+
+.stat-card {
+    padding: var(--spacing-lg);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    text-align: center;
+}
+
+.stat-card-dark {
+    background: var(--card);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.stat-card h3 {
+    margin: 0 0 var(--spacing-md) 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.stat-number {
+    margin: 0;
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--accent);
+}
+
+.stat-detail {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--muted);
+}
+
+/* ==================== Carousel ==================== */
+.carousel-container {
+    margin-bottom: var(--spacing-xl);
+}
+
+.carousel {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+}
+
+.carousel-controls {
+    display: flex;
+    gap: var(--spacing-md);
+    justify-content: center;
+}
+
+.carousel-btn {
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-weight: 500;
+    transition: var(--transition-fast);
+}
+
+.carousel-btn:hover {
+    background: var(--accent-hover);
+}
+
+.carousel-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ==================== Event Card ==================== */
+.event-card {
+    padding: var(--spacing-lg);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    transition: var(--transition-medium);
+    cursor: pointer;
+}
+
+.event-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 12px rgba(108, 92, 231, 0.1);
+}
+
+.event-card h4 {
+    margin-top: 0;
+    margin-bottom: var(--spacing-sm);
+    color: var(--text);
+}
+
+.event-card .event-type {
+    display: inline-block;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background: var(--accent-tertiary);
+    color: #111;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-bottom: var(--spacing-sm);
+}
+
+.event-card .event-status {
+    display: inline-block;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background: var(--accent-secondary);
+    color: white;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-left: var(--spacing-sm);
+}
+
+.event-card .event-meta {
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin: var(--spacing-sm) 0;
+}
+
+.event-card .event-registrations {
+    font-size: 0.9rem;
+    color: var(--accent);
+    font-weight: 600;
+}
+
+/* ==================== Button Group ==================== */
+.button-group {
+    display: flex;
+    gap: var(--spacing-md);
+    flex-wrap: wrap;
+}
