@@ -9,6 +9,22 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+// Verify transporter on startup so SMTP auth errors are visible immediately
+transporter.verify((error, success) => {
+  if (error) {
+    console.error('========================================');
+    console.error('EMAIL SMTP VERIFICATION FAILED:', error.message);
+    console.error('Emails will NOT be sent until this is fixed.');
+    console.error('If using Gmail, you need a Google App Password:');
+    console.error('  1. Enable 2FA on your Google Account');
+    console.error('  2. Go to https://myaccount.google.com/apppasswords');
+    console.error('  3. Generate an app password and set EMAIL_PASSWORD in .env');
+    console.error('========================================');
+  } else {
+    console.log('✅ Email SMTP transporter verified and ready to send emails.');
+  }
+});
+
 // Send registration confirmation email
 const sendRegistrationEmail = async (email, firstName) => {
   try {
@@ -32,7 +48,40 @@ const sendRegistrationEmail = async (email, firstName) => {
     });
     console.log(`Registration email sent to ${email}`);
   } catch (error) {
-    console.error('Failed to send registration email:', error);
+    console.error('Failed to send registration email:', error.message);
+  }
+};
+
+// Send organizer credentials email (when admin creates an organizer account)
+const sendOrganizerCredentialsEmail = async (email, firstName, password) => {
+  try {
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: 'Your Organizer Account - DASS Event Management System',
+      html: `
+        <h1>Welcome, ${firstName}!</h1>
+        <p>An organizer account has been created for you on the DASS Event Management System.</p>
+        <p><strong>Your login credentials:</strong></p>
+        <div style="background-color: #f4f4f4; padding: 15px; border-radius: 5px; margin: 10px 0;">
+          <p style="margin: 5px 0;"><strong>Email:</strong> ${email}</p>
+          <p style="margin: 5px 0;"><strong>Password:</strong> ${password}</p>
+        </div>
+        <p style="color: #e74c3c;"><strong>⚠️ Please change your password after your first login for security.</strong></p>
+        <p>You can now:</p>
+        <ul>
+          <li>Create and manage events</li>
+          <li>View event registrations and participants</li>
+          <li>Update your organizer profile</li>
+        </ul>
+        <p>Login at: <a href="${process.env.FRONTEND_URL}">${process.env.FRONTEND_URL}</a></p>
+        <br/>
+        <p>Best regards,<br/>DASS Event Management Team</p>
+      `
+    });
+    console.log(`Organizer credentials email sent to ${email}`);
+  } catch (error) {
+    console.error('Failed to send organizer credentials email:', error.message);
   }
 };
 
@@ -64,7 +113,7 @@ const sendPasswordResetEmail = async (email, firstName, resetToken) => {
     });
     console.log(`Password reset email sent to ${email}`);
   } catch (error) {
-    console.error('Failed to send password reset email:', error);
+    console.error('Failed to send password reset email:', error.message);
   }
 };
 
@@ -86,7 +135,7 @@ const sendPasswordChangeEmail = async (email, firstName) => {
     });
     console.log(`Password change email sent to ${email}`);
   } catch (error) {
-    console.error('Failed to send password change email:', error);
+    console.error('Failed to send password change email:', error.message);
   }
 };
 
@@ -110,13 +159,14 @@ const sendEventRegistrationEmail = async (email, firstName, eventName, eventDate
     });
     console.log(`Event registration email sent to ${email}`);
   } catch (error) {
-    console.error('Failed to send event registration email:', error);
+    console.error('Failed to send event registration email:', error.message);
   }
 };
 
 module.exports = {
   transporter,
   sendRegistrationEmail,
+  sendOrganizerCredentialsEmail,
   sendPasswordResetEmail,
   sendPasswordChangeEmail,
   sendEventRegistrationEmail

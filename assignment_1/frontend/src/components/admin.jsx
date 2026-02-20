@@ -8,7 +8,7 @@ export default function Admin() {
     const [user, setUser] = useState(null);
     const [currentView, setCurrentView] = useState('dashboard');
     const navigate = useNavigate();
-    
+
     // Data states
     const [organizers, setOrganizers] = useState([]);
     const [clubs, setClubs] = useState([]);
@@ -16,19 +16,20 @@ export default function Admin() {
     const [passwordChangeRequests, setPasswordChangeRequests] = useState([]);
     const [message, setMessage] = useState('');
     const [generatedCredentials, setGeneratedCredentials] = useState(null);
-    
+
     // Management states
     const [managementTab, setManagementTab] = useState('organizers'); // 'organizers' or 'clubs'
     const [showAddForm, setShowAddForm] = useState(false);
-    
+
     // Form states
     const [organizerForm, setOrganizerForm] = useState({
         firstName: '',
         lastName: '',
         email: '',
+        password: '',
         autoGenerate: true
     });
-    
+
     const [clubForm, setClubForm] = useState({
         clubName: '',
         description: ''
@@ -104,19 +105,19 @@ export default function Admin() {
         e.preventDefault();
         setMessage('');
         setGeneratedCredentials(null);
-        
+
         try {
             const response = await createOrganizer(organizerForm);
             setMessage(response.data.message || 'Organizer created successfully!');
-            
+
             if (response.data.organizer?.generatedPassword) {
                 setGeneratedCredentials({
                     email: response.data.organizer.email,
                     password: response.data.organizer.generatedPassword
                 });
             }
-            
-            setOrganizerForm({ firstName: '', lastName: '', email: '', autoGenerate: true });
+
+            setOrganizerForm({ firstName: '', lastName: '', email: '', password: '', autoGenerate: true });
             fetchOrganizers();
             setTimeout(() => setShowAddForm(false), 3000);
         } catch (error) {
@@ -126,7 +127,7 @@ export default function Admin() {
 
     const handleRemoveOrganizer = async (email) => {
         if (!window.confirm('Are you sure you want to permanently delete this organizer?')) return;
-        
+
         try {
             const response = await deleteOrganizer({ email });
             setMessage(response.data.message || 'Organizer deleted successfully!');
@@ -149,7 +150,7 @@ export default function Admin() {
     const handleAddClub = async (e) => {
         e.preventDefault();
         setMessage('');
-        
+
         try {
             const response = await addClub(clubForm);
             setMessage(response.data.message || 'Club created successfully!');
@@ -163,7 +164,7 @@ export default function Admin() {
 
     const handleRemoveClub = async (clubName) => {
         if (!window.confirm('Are you sure you want to permanently delete this club?')) return;
-        
+
         try {
             const response = await deleteClub({ clubName });
             setMessage(response.data.message || 'Club deleted successfully!');
@@ -202,7 +203,7 @@ export default function Admin() {
             borderBottom: `2px solid ${darkMode ? '#444' : '#ddd'}`,
             marginBottom: '20px'
         }}>
-            <button 
+            <button
                 onClick={() => setCurrentView('dashboard')}
                 className="small-btn"
                 style={{
@@ -212,7 +213,7 @@ export default function Admin() {
             >
                 Dashboard
             </button>
-            <button 
+            <button
                 onClick={() => setCurrentView('manage')}
                 className="small-btn"
                 style={{
@@ -222,7 +223,7 @@ export default function Admin() {
             >
                 Manage Clubs/Organizers
             </button>
-            <button 
+            <button
                 onClick={() => setCurrentView('password-reset')}
                 className="small-btn"
                 style={{
@@ -247,11 +248,11 @@ export default function Admin() {
                     <p className="muted">Total Clubs: {clubs.length}</p>
                     <p className="muted">Password Change Requests: {passwordChangeRequests.length}</p>
                     <p className="muted">Forgot Password Requests: {passwordResetRequests.length}</p>
-                    <button 
-                        className="small-btn" 
+                    <button
+                        className="small-btn"
                         onClick={() => setCurrentView('manage')}
-                        onMouseEnter={(e) => {e.target.style.scale="1.1"; e.target.style.transition="all 0.2s ease";}}
-                        onMouseLeave={(e) => {e.target.style.scale="1"; e.target.style.transition="all 0.2s ease";}}
+                        onMouseEnter={(e) => { e.target.style.scale = "1.1"; e.target.style.transition = "all 0.2s ease"; }}
+                        onMouseLeave={(e) => { e.target.style.scale = "1"; e.target.style.transition = "all 0.2s ease"; }}
                     >
                         View Details
                     </button>
@@ -260,15 +261,15 @@ export default function Admin() {
                 <div className="card">
                     <h4>👥 Quick Actions</h4>
                     <p className="muted">Manage clubs and organizers efficiently.</p>
-                    <button 
-                        className="small-btn" 
+                    <button
+                        className="small-btn"
                         onClick={() => {
                             setCurrentView('manage');
                             setManagementTab('organizers');
                             setShowAddForm(true);
                         }}
-                        onMouseEnter={(e) => {e.target.style.scale="1.1"; e.target.style.transition="all 0.2s ease";}}
-                        onMouseLeave={(e) => {e.target.style.scale="1"; e.target.style.transition="all 0.2s ease";}}
+                        onMouseEnter={(e) => { e.target.style.scale = "1.1"; e.target.style.transition = "all 0.2s ease"; }}
+                        onMouseLeave={(e) => { e.target.style.scale = "1"; e.target.style.transition = "all 0.2s ease"; }}
                     >
                         Add Organizer
                     </button>
@@ -277,15 +278,15 @@ export default function Admin() {
                 <div className="card">
                     <h4>🏢 Club Management</h4>
                     <p className="muted">Create and manage clubs.</p>
-                    <button 
-                        className="small-btn" 
+                    <button
+                        className="small-btn"
                         onClick={() => {
                             setCurrentView('manage');
                             setManagementTab('clubs');
                             setShowAddForm(true);
                         }}
-                        onMouseEnter={(e) => {e.target.style.scale="1.1"; e.target.style.transition="all 0.2s ease";}}
-                        onMouseLeave={(e) => {e.target.style.scale="1"; e.target.style.transition="all 0.2s ease";}}
+                        onMouseEnter={(e) => { e.target.style.scale = "1.1"; e.target.style.transition = "all 0.2s ease"; }}
+                        onMouseLeave={(e) => { e.target.style.scale = "1"; e.target.style.transition = "all 0.2s ease"; }}
                     >
                         Add Club
                     </button>
@@ -295,14 +296,14 @@ export default function Admin() {
                     <h4>🔐 Password Requests</h4>
                     <p className="muted">
                         {passwordChangeRequests.length === 0 && passwordResetRequests.length === 0
-                            ? 'No pending password requests.' 
+                            ? 'No pending password requests.'
                             : `${passwordChangeRequests.length} change request${passwordChangeRequests.length !== 1 ? 's' : ''}, ${passwordResetRequests.length} forgot password request${passwordResetRequests.length !== 1 ? 's' : ''}.`}
                     </p>
-                    <button 
-                        className="small-btn" 
+                    <button
+                        className="small-btn"
                         onClick={() => setCurrentView('password-reset')}
-                        onMouseEnter={(e) => {e.target.style.scale="1.1"; e.target.style.transition="all 0.2s ease";}}
-                        onMouseLeave={(e) => {e.target.style.scale="1"; e.target.style.transition="all 0.2s ease";}}
+                        onMouseEnter={(e) => { e.target.style.scale = "1.1"; e.target.style.transition = "all 0.2s ease"; }}
+                        onMouseLeave={(e) => { e.target.style.scale = "1"; e.target.style.transition = "all 0.2s ease"; }}
                     >
                         View Requests
                     </button>
@@ -315,8 +316,8 @@ export default function Admin() {
         <section className="content">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h3>Manage Clubs & Organizers</h3>
-                <button 
-                    className="primary-btn" 
+                <button
+                    className="primary-btn"
                     onClick={() => {
                         setShowAddForm(!showAddForm);
                         setMessage('');
@@ -328,7 +329,7 @@ export default function Admin() {
             </div>
 
             <div style={{ marginBottom: '20px' }}>
-                <button 
+                <button
                     onClick={() => {
                         setManagementTab('organizers');
                         setShowAddForm(false);
@@ -343,7 +344,7 @@ export default function Admin() {
                 >
                     Organizers ({organizers.length})
                 </button>
-                <button 
+                <button
                     onClick={() => {
                         setManagementTab('clubs');
                         setShowAddForm(false);
@@ -360,8 +361,8 @@ export default function Admin() {
             </div>
 
             {message && (
-                <div style={{ 
-                    padding: '10px', 
+                <div style={{
+                    padding: '10px',
                     marginBottom: '20px',
                     borderRadius: '4px',
                     backgroundColor: message.includes('success') || message.includes('created') || message.includes('deleted') || message.includes('updated') ? '#28a745' : '#dc3545',
@@ -379,7 +380,7 @@ export default function Admin() {
                             type="text"
                             placeholder="First Name"
                             value={organizerForm.firstName}
-                            onChange={(e) => setOrganizerForm({...organizerForm, firstName: e.target.value})}
+                            onChange={(e) => setOrganizerForm({ ...organizerForm, firstName: e.target.value })}
                             required
                             style={inputStyle(darkMode)}
                         />
@@ -387,7 +388,7 @@ export default function Admin() {
                             type="text"
                             placeholder="Last Name"
                             value={organizerForm.lastName}
-                            onChange={(e) => setOrganizerForm({...organizerForm, lastName: e.target.value})}
+                            onChange={(e) => setOrganizerForm({ ...organizerForm, lastName: e.target.value })}
                             required
                             style={inputStyle(darkMode)}
                         />
@@ -395,7 +396,7 @@ export default function Admin() {
                             type="email"
                             placeholder="Email"
                             value={organizerForm.email}
-                            onChange={(e) => setOrganizerForm({...organizerForm, email: e.target.value})}
+                            onChange={(e) => setOrganizerForm({ ...organizerForm, email: e.target.value })}
                             required
                             style={inputStyle(darkMode)}
                         />
@@ -403,21 +404,32 @@ export default function Admin() {
                             <input
                                 type="checkbox"
                                 checked={organizerForm.autoGenerate}
-                                onChange={(e) => setOrganizerForm({...organizerForm, autoGenerate: e.target.checked})}
+                                onChange={(e) => setOrganizerForm({ ...organizerForm, autoGenerate: e.target.checked })}
                                 style={{ marginRight: '10px' }}
                             />
                             Auto-generate password
                         </label>
+                        {!organizerForm.autoGenerate && (
+                            <input
+                                type="password"
+                                placeholder="Enter password (min 6 characters)"
+                                value={organizerForm.password}
+                                onChange={(e) => setOrganizerForm({ ...organizerForm, password: e.target.value })}
+                                required
+                                minLength={6}
+                                style={inputStyle(darkMode)}
+                            />
+                        )}
                         <button type="submit" className="primary-btn" style={{ width: '100%' }}>
                             Create Organizer
                         </button>
                     </form>
 
                     {generatedCredentials && (
-                        <div style={{ 
-                            marginTop: '20px', 
-                            padding: '15px', 
-                            backgroundColor: '#28a745', 
+                        <div style={{
+                            marginTop: '20px',
+                            padding: '15px',
+                            backgroundColor: '#28a745',
                             color: '#fff',
                             borderRadius: '4px'
                         }}>
@@ -440,17 +452,17 @@ export default function Admin() {
                             type="text"
                             placeholder="Club Name"
                             value={clubForm.clubName}
-                            onChange={(e) => setClubForm({...clubForm, clubName: e.target.value})}
+                            onChange={(e) => setClubForm({ ...clubForm, clubName: e.target.value })}
                             required
                             style={inputStyle(darkMode)}
                         />
                         <textarea
                             placeholder="Description"
                             value={clubForm.description}
-                            onChange={(e) => setClubForm({...clubForm, description: e.target.value})}
+                            onChange={(e) => setClubForm({ ...clubForm, description: e.target.value })}
                             required
                             rows="4"
-                            style={{...inputStyle(darkMode), resize: 'vertical', fontFamily: 'inherit'}}
+                            style={{ ...inputStyle(darkMode), resize: 'vertical', fontFamily: 'inherit' }}
                         />
                         <button type="submit" className="primary-btn" style={{ width: '100%' }}>
                             Create Club
@@ -466,8 +478,8 @@ export default function Admin() {
                         <p className="muted">No organizers found.</p>
                     ) : (
                         <div style={{ overflowX: 'auto' }}>
-                            <table style={{ 
-                                width: '100%', 
+                            <table style={{
+                                width: '100%',
                                 borderCollapse: 'collapse',
                                 backgroundColor: darkMode ? '#2a2a2a' : '#fff'
                             }}>
@@ -496,7 +508,7 @@ export default function Admin() {
                                                 </span>
                                             </td>
                                             <td style={{ padding: '12px' }}>
-                                                <select 
+                                                <select
                                                     onChange={(e) => {
                                                         const action = e.target.value;
                                                         if (action === 'delete') {
@@ -538,8 +550,8 @@ export default function Admin() {
                         <p className="muted">No clubs found.</p>
                     ) : (
                         <div style={{ overflowX: 'auto' }}>
-                            <table style={{ 
-                                width: '100%', 
+                            <table style={{
+                                width: '100%',
                                 borderCollapse: 'collapse',
                                 backgroundColor: darkMode ? '#2a2a2a' : '#fff'
                             }}>
@@ -568,7 +580,7 @@ export default function Admin() {
                                                 </span>
                                             </td>
                                             <td style={{ padding: '12px' }}>
-                                                <select 
+                                                <select
                                                     onChange={(e) => {
                                                         const action = e.target.value;
                                                         if (action === 'delete') {
@@ -607,7 +619,7 @@ export default function Admin() {
 
     const handleClearPasswordReset = async (email) => {
         if (!window.confirm('Are you sure you want to clear this password reset request?')) return;
-        
+
         try {
             const response = await clearPasswordResetRequest({ email });
             setMessage(response.data.message || 'Password reset request cleared successfully!');
@@ -620,7 +632,7 @@ export default function Admin() {
 
     const handleApprovePasswordChange = async (requestId) => {
         const adminNotes = prompt('Optional: Enter admin notes for this approval:');
-        
+
         try {
             const response = await approvePasswordChangeRequest({ requestId, adminNotes: adminNotes || '' });
             setMessage(response.data.message || 'Password change request approved successfully!');
@@ -634,7 +646,7 @@ export default function Admin() {
     const handleRejectPasswordChange = async (requestId) => {
         const adminNotes = prompt('Enter reason for rejection:');
         if (!adminNotes) return;
-        
+
         try {
             const response = await rejectPasswordChangeRequest({ requestId, adminNotes });
             setMessage(response.data.message || 'Password change request rejected successfully!');
@@ -645,28 +657,28 @@ export default function Admin() {
         }
     };
 
-const PasswordResetViewContent = () => {
+    const PasswordResetViewContent = () => {
         const [requestTab, setRequestTab] = React.useState('change');
 
         return (
             <section className="content">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                     <h3>Password Management Requests</h3>
-                    <button 
-                        className="small-btn" 
+                    <button
+                        className="small-btn"
                         onClick={() => {
                             fetchPasswordResetRequests();
                             fetchPasswordChangeRequests();
                         }}
-                        onMouseEnter={(e) => {e.target.style.scale="1.1"; e.target.style.transition="all 0.2s ease";}}
-                        onMouseLeave={(e) => {e.target.style.scale="1"; e.target.style.transition="all 0.2s ease";}}
+                        onMouseEnter={(e) => { e.target.style.scale = "1.1"; e.target.style.transition = "all 0.2s ease"; }}
+                        onMouseLeave={(e) => { e.target.style.scale = "1"; e.target.style.transition = "all 0.2s ease"; }}
                     >
                         🔄 Refresh
                     </button>
                 </div>
 
                 <div style={{ marginBottom: '20px' }}>
-                    <button 
+                    <button
                         onClick={() => setRequestTab('change')}
                         className="small-btn"
                         style={{
@@ -677,7 +689,7 @@ const PasswordResetViewContent = () => {
                     >
                         Password Change Requests ({passwordChangeRequests.length})
                     </button>
-                    <button 
+                    <button
                         onClick={() => setRequestTab('reset')}
                         className="small-btn"
                         style={{
@@ -690,8 +702,8 @@ const PasswordResetViewContent = () => {
                 </div>
 
                 {message && (
-                    <div style={{ 
-                        padding: '10px', 
+                    <div style={{
+                        padding: '10px',
                         marginBottom: '20px',
                         borderRadius: '4px',
                         backgroundColor: message.includes('success') || message.includes('approved') || message.includes('rejected') || message.includes('cleared') ? '#28a745' : '#dc3545',
@@ -704,7 +716,7 @@ const PasswordResetViewContent = () => {
                 {requestTab === 'change' && (
                     <>
                         <p className="muted">Organizers who have submitted requests to change their password (requires admin approval).</p>
-                        
+
                         {passwordChangeRequests.length === 0 ? (
                             <div className="card">
                                 <h4>📋 No Pending Requests</h4>
@@ -712,8 +724,8 @@ const PasswordResetViewContent = () => {
                             </div>
                         ) : (
                             <div style={{ overflowX: 'auto' }}>
-                                <table style={{ 
-                                    width: '100%', 
+                                <table style={{
+                                    width: '100%',
                                     borderCollapse: 'collapse',
                                     backgroundColor: darkMode ? '#2a2a2a' : '#fff'
                                 }}>
@@ -730,7 +742,7 @@ const PasswordResetViewContent = () => {
                                     <tbody>
                                         {passwordChangeRequests.map((request) => {
                                             const requestedAt = new Date(request.createdAt);
-                                            
+
                                             return (
                                                 <tr key={request._id} style={{ borderBottom: `1px solid ${darkMode ? '#444' : '#ddd'}` }}>
                                                     <td style={{ padding: '12px' }}>{request.userName}</td>
@@ -750,7 +762,7 @@ const PasswordResetViewContent = () => {
                                                     <td style={{ padding: '12px' }}>{requestedAt.toLocaleString()}</td>
                                                     <td style={{ padding: '12px' }}>
                                                         <div style={{ display: 'flex', gap: '8px' }}>
-                                                            <button 
+                                                            <button
                                                                 onClick={() => handleApprovePasswordChange(request._id)}
                                                                 className="small-btn"
                                                                 style={{
@@ -761,7 +773,7 @@ const PasswordResetViewContent = () => {
                                                             >
                                                                 ✓ Approve
                                                             </button>
-                                                            <button 
+                                                            <button
                                                                 onClick={() => handleRejectPasswordChange(request._id)}
                                                                 className="small-btn"
                                                                 style={{
@@ -798,7 +810,7 @@ const PasswordResetViewContent = () => {
                 {requestTab === 'reset' && (
                     <>
                         <p className="muted">Users who have requested a password reset via the "Forgot Password" feature.</p>
-                        
+
                         {passwordResetRequests.length === 0 ? (
                             <div className="card">
                                 <h4>📋 No Pending Requests</h4>
@@ -806,8 +818,8 @@ const PasswordResetViewContent = () => {
                             </div>
                         ) : (
                             <div style={{ overflowX: 'auto' }}>
-                                <table style={{ 
-                                    width: '100%', 
+                                <table style={{
+                                    width: '100%',
                                     borderCollapse: 'collapse',
                                     backgroundColor: darkMode ? '#2a2a2a' : '#fff'
                                 }}>
@@ -825,7 +837,7 @@ const PasswordResetViewContent = () => {
                                             const expiresAt = new Date(request.resetPasswordExpire);
                                             const now = new Date();
                                             const timeRemaining = Math.max(0, Math.floor((expiresAt - now) / 1000 / 60)); // minutes
-                                            
+
                                             return (
                                                 <tr key={request._id} style={{ borderBottom: `1px solid ${darkMode ? '#444' : '#ddd'}` }}>
                                                     <td style={{ padding: '12px' }}>{request.firstName} {request.lastName}</td>
@@ -849,7 +861,7 @@ const PasswordResetViewContent = () => {
                                                         </span>
                                                     </td>
                                                     <td style={{ padding: '12px' }}>
-                                                        <button 
+                                                        <button
                                                             onClick={() => handleClearPasswordReset(request.email)}
                                                             className="small-btn"
                                                             style={{
@@ -868,15 +880,15 @@ const PasswordResetViewContent = () => {
                                 </table>
                             </div>
                         )}
-                        
+
                         <div className="card" style={{ marginTop: '20px' }}>
                             <h4>ℹ️ About Password Reset Requests</h4>
                             <p className="muted">
-                                When users click "Forgot Password" on the login page, they receive an email with a reset link. 
+                                When users click "Forgot Password" on the login page, they receive an email with a reset link.
                                 The reset token is valid for 1 hour. Users listed here have active reset tokens.
                             </p>
                             <p className="muted">
-                                <strong>Note:</strong> Users can complete the password reset themselves using the link in their email. 
+                                <strong>Note:</strong> Users can complete the password reset themselves using the link in their email.
                                 You can clear requests here if needed (e.g., if a user reports they didn't request a reset).
                             </p>
                         </div>
@@ -893,8 +905,8 @@ const PasswordResetViewContent = () => {
             <header className={darkMode ? 'user-header-dark' : 'user-header'}>
                 <h1>Admin Panel</h1>
                 <div className="header-actions">
-                    <button 
-                        onClick={() => setDarkMode(!darkMode)} 
+                    <button
+                        onClick={() => setDarkMode(!darkMode)}
                         className="small-btn"
                         onMouseEnter={(e) => {
                             e.target.style.textDecoration = 'underline';
@@ -906,7 +918,7 @@ const PasswordResetViewContent = () => {
                             e.target.style.textDecoration = 'none';
                             e.target.style.color = darkMode ? '#ffffff' : '#111111';
                             e.target.style.scale = '1';
-                            e.target.style.transition = "all 0.2s ease";  
+                            e.target.style.transition = "all 0.2s ease";
                         }}
                     >
                         {darkMode ? 'Light mode' : 'Dark mode'}
