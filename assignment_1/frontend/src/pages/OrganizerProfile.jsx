@@ -100,10 +100,10 @@ export default function OrganizerProfile() {
       });
 
       const data = await response.json();
-      
+
       if (response.ok) {
         setMessage('✓ Profile saved successfully!');
-        
+
         // Update local storage with new organizer profile
         localStorage.setItem('organizerProfile', JSON.stringify(profileData));
 
@@ -176,7 +176,7 @@ export default function OrganizerProfile() {
     try {
       const response = await fetch('http://localhost:5000/api/auth/change-password', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
@@ -189,7 +189,7 @@ export default function OrganizerProfile() {
       });
 
       const data = await response.json();
-      
+
       if (response.ok) {
         setMessage('✓ Password change request submitted successfully! Please wait for admin approval.');
         setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '', reason: '' });
@@ -220,12 +220,12 @@ export default function OrganizerProfile() {
   return (
     <div className={darkMode ? 'user-root-dark' : 'user-root'}>
       <OrganizerNav darkMode={darkMode} />
-      
+
       <header className={darkMode ? 'user-header-dark' : 'user-header'}>
         <h1>Organizer Profile</h1>
         <div className="header-actions">
-          <button 
-            onClick={() => setDarkMode(!darkMode)} 
+          <button
+            onClick={() => setDarkMode(!darkMode)}
             className="small-btn"
           >
             {darkMode ? 'Light' : 'Dark'} Mode
@@ -266,7 +266,7 @@ export default function OrganizerProfile() {
               type="email"
               value={user?.email || ''}
               disabled
-              style={{...inputStyle(darkMode), opacity: 0.6}}
+              style={{ ...inputStyle(darkMode), opacity: 0.6 }}
             />
 
             <label>Contact Email</label>
@@ -288,16 +288,14 @@ export default function OrganizerProfile() {
             />
 
             <label>Organizer Category</label>
-            <select 
+            <select
               value={profileData.organizerCategory}
               onChange={(e) => handleProfileChange('organizerCategory', e.target.value)}
               style={inputStyle(darkMode)}
             >
               <option value="club">Club</option>
-              <option value="organization">Organization</option>
-              <option value="community">Community</option>
-              <option value="business">Business</option>
-              <option value="other">Other</option>
+              <option value="council">Council</option>
+              <option value="fest_team">Fest Team</option>
             </select>
 
             <label>Organizer Description</label>
@@ -308,7 +306,7 @@ export default function OrganizerProfile() {
               style={{ ...inputStyle(darkMode), minHeight: '100px', resize: 'vertical' }}
             />
 
-            <button 
+            <button
               type="submit"
               className="primary-btn"
               disabled={loading}
@@ -347,14 +345,14 @@ export default function OrganizerProfile() {
 
                 <p className="muted" style={{ fontSize: '12px' }}>
                   How to get your webhook URL:
-                  <br/>1. Go to your Discord server settings
-                  <br/>2. Navigate to Integrations → Webhooks
-                  <br/>3. Click "New Webhook" or select existing one
-                  <br/>4. Copy the webhook URL and paste it above
+                  <br />1. Go to your Discord server settings
+                  <br />2. Navigate to Integrations → Webhooks
+                  <br />3. Click "New Webhook" or select existing one
+                  <br />4. Copy the webhook URL and paste it above
                 </p>
 
                 <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-                  <button 
+                  <button
                     type="button"
                     className="secondary-btn"
                     onClick={testDiscordWebhook}
@@ -362,7 +360,7 @@ export default function OrganizerProfile() {
                   >
                     🧪 Test Webhook
                   </button>
-                  <button 
+                  <button
                     type="button"
                     className="primary-btn"
                     onClick={saveProfile}
@@ -379,9 +377,9 @@ export default function OrganizerProfile() {
         {/* Password Change Section */}
         <section className="section-card">
           <h3>Security</h3>
-          
+
           {!showPasswordChange ? (
-            <button 
+            <button
               className="secondary-btn"
               onClick={() => setShowPasswordChange(true)}
             >
@@ -427,8 +425,8 @@ export default function OrganizerProfile() {
                 style={{ ...inputStyle(darkMode), minHeight: '80px', resize: 'vertical' }}
               />
 
-              <div style={{ 
-                padding: '12px', 
+              <div style={{
+                padding: '12px',
                 marginTop: '10px',
                 backgroundColor: darkMode ? '#3a3a3a' : '#fff3cd',
                 color: darkMode ? '#ffc107' : '#856404',
@@ -440,14 +438,14 @@ export default function OrganizerProfile() {
               </div>
 
               <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-                <button 
+                <button
                   type="submit"
                   className="primary-btn"
                   disabled={loading}
                 >
                   {loading ? 'Submitting...' : '📝 Submit Request'}
                 </button>
-                <button 
+                <button
                   type="button"
                   className="secondary-btn"
                   onClick={() => {

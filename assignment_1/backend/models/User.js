@@ -35,16 +35,16 @@ const userSchema = new mongoose.Schema({
   userType: {
     type: String,
     enum: ['IIIT', 'nonIIIT'],
-    required: function() { return this.role === 'user'; }
+    required: function () { return this.role === 'user'; }
   },
   college_name: {
     type: String,
-    required: function() { return this.role === 'user'; },
+    required: function () { return this.role === 'user'; },
     trim: true
   },
   phone_number: {
     type: String,
-    required: function() { return this.role === 'user'; },
+    required: function () { return this.role === 'user'; },
     trim: true
   },
   resetPasswordToken: {
@@ -59,11 +59,11 @@ const userSchema = new mongoose.Schema({
   organizerName: {
     type: String,
     trim: true,
-    required: function() { return this.role === 'organizer'; }
+    required: function () { return this.role === 'organizer'; }
   },
   organizerCategory: {
     type: String,
-    enum: ['club', 'organization', 'community', 'business', 'other'],
+    enum: ['club', 'council', 'fest_team'],
     default: 'club'
   },
   organizerDescription: {
@@ -93,11 +93,11 @@ const userSchema = new mongoose.Schema({
     default: 'active'
   }
 },
-{
-  timestamps: true
-});
+  {
+    timestamps: true
+  });
 
-userSchema.pre('validate', function() {
+userSchema.pre('validate', function () {
   if (this.role === 'user' && this.userType === 'IIIT') {
     const validDomains = ['@research.iiit.ac.in', '@students.iiit.ac.in', '@iiit.ac.in'];
     const isValidDomain = validDomains.some(domain => this.email.endsWith(domain));
@@ -108,17 +108,17 @@ userSchema.pre('validate', function() {
   }
 });
 
-userSchema.pre('save', async function() {
+userSchema.pre('save', async function () {
   if (!this.isModified('password')) return;
   this.password = await bcrypt.hash(this.password, 10);
 });
 
-userSchema.methods.comparePassword = async function(candidatePassword) {
+userSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
 // Generate password reset token
-userSchema.methods.generatePasswordResetToken = function() {
+userSchema.methods.generatePasswordResetToken = function () {
   const resetToken = crypto.randomBytes(32).toString('hex');
   this.resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
   this.resetPasswordExpire = Date.now() + 60 * 60 * 1000; // 1 hour

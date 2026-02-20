@@ -27,6 +27,7 @@ export default function Admin() {
         lastName: '',
         email: '',
         password: '',
+        organizerCategory: 'club',
         autoGenerate: true
     });
 
@@ -117,7 +118,7 @@ export default function Admin() {
                 });
             }
 
-            setOrganizerForm({ firstName: '', lastName: '', email: '', password: '', autoGenerate: true });
+            setOrganizerForm({ firstName: '', lastName: '', email: '', password: '', organizerCategory: 'club', autoGenerate: true });
             fetchOrganizers();
             setTimeout(() => setShowAddForm(false), 3000);
         } catch (error) {
@@ -400,6 +401,15 @@ export default function Admin() {
                             required
                             style={inputStyle(darkMode)}
                         />
+                        <select
+                            value={organizerForm.organizerCategory}
+                            onChange={(e) => setOrganizerForm({ ...organizerForm, organizerCategory: e.target.value })}
+                            style={inputStyle(darkMode)}
+                        >
+                            <option value="club">Club</option>
+                            <option value="council">Council</option>
+                            <option value="fest_team">Fest Team</option>
+                        </select>
                         <label style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
                             <input
                                 type="checkbox"

@@ -158,7 +158,7 @@ const login = async (req, res) => {
 
 const createOrganizer = async (req, res) => {
   try {
-    const { firstName, lastName, email, password, autoGenerate } = req.body;
+    const { firstName, lastName, email, password, autoGenerate, organizerCategory } = req.body;
 
     if (!firstName || !lastName || !email) {
       return res.status(400).json({
@@ -199,6 +199,7 @@ const createOrganizer = async (req, res) => {
         password: finalPassword,
         role: 'organizer',
         organizerName: `${firstName} ${lastName}`,
+        organizerCategory: organizerCategory || 'club',
         status: 'active'
       });
 
