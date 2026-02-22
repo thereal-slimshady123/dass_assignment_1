@@ -650,8 +650,8 @@ const changePassword = async (req, res) => {
 // Send event registration email
 const sendEventRegistrationEmailHandler = async (req, res) => {
   try {
-    const { email, firstName, eventName, eventDate } = req.body;
-    console.log('Send event email request received:', { email, firstName, eventName, eventDate });
+    const { email, firstName, eventName, eventDate, ticketId, qrDataUrl } = req.body;
+    console.log('Send event email request received:', { email, firstName, eventName, eventDate, ticketId: !!ticketId, hasQR: !!qrDataUrl });
 
     if (!email || !firstName || !eventName || !eventDate) {
       console.log('Missing fields for event email:', { email: !!email, firstName: !!firstName, eventName: !!eventName, eventDate: !!eventDate });
@@ -661,7 +661,7 @@ const sendEventRegistrationEmailHandler = async (req, res) => {
       });
     }
 
-    await sendEventRegistrationEmail(email, firstName, eventName, eventDate);
+    await sendEventRegistrationEmail(email, firstName, eventName, eventDate, ticketId, qrDataUrl);
 
     res.status(200).json({
       success: true,

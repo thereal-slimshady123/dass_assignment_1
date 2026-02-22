@@ -89,7 +89,7 @@ const sendOrganizerCredentialsEmail = async (email, firstName, password) => {
 const sendPasswordResetEmail = async (email, firstName, resetToken) => {
   try {
     const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
-    
+
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: email,
@@ -139,23 +139,56 @@ const sendPasswordChangeEmail = async (email, firstName) => {
   }
 };
 
-// Send event registration confirmation
-const sendEventRegistrationEmail = async (email, firstName, eventName, eventDate) => {
+// Send event registration confirmation (with QR code)
+const sendEventRegistrationEmail = async (email, firstName, eventName, eventDate, ticketId, qrDataUrl) => {
   try {
+    const attachments = [];
+    let qrSection = '';
+
+    if (qrDataUrl) {
+      // Strip the data URL prefix and convert to a Buffer so nodemailer can attach it inline
+      const base64Data = qrDataUrl.replace(/^data:image\/\w+;base64,/, '');
+      const qrBuffer = Buffer.from(base64Data, 'base64');
+      attachments.push({
+        filename: 'qrcode.png',
+        content: qrBuffer,
+        encoding: 'base64',
+        cid: 'qrcode@dass'   // unique content-id referenced in the HTML below
+      });
+      qrSection = `
+      <div style="text-align: center; margin: 24px 0; padding: 20px; background: #f9fafb; border-radius: 12px; border: 1px solid #e5e7eb;">
+        <p style="margin: 0 0 12px; font-size: 14px; color: #6b7280; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Your Entry QR Code</p>
+        <img src="cid:qrcode@dass" alt="QR Code" style="width: 200px; height: 200px; display: block; margin: 0 auto;" />
+        <p style="margin: 12px 0 0; font-family: monospace; font-size: 13px; color: #374151; background: #e5e7eb; display: inline-block; padding: 4px 12px; border-radius: 6px;">${ticketId}</p>
+        <p style="margin: 8px 0 0; font-size: 12px; color: #9ca3af;">Present this QR code at the event entrance for check-in</p>
+      </div>`;
+    }
+
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: email,
-      subject: `Event Registration Confirmed - ${eventName}`,
+      subject: `Event Registration Confirmed — ${eventName}`,
       html: `
-        <h1>Registration Confirmed!</h1>
-        <p>Hello ${firstName},</p>
-        <p>Your registration for <strong>${eventName}</strong> has been confirmed.</p>
-        <p><strong>Event Details:</strong></p>
-        <p>Date: ${eventDate}</p>
-        <p>You will receive your event ticket in your DASS dashboard. Be sure to check-in on time!</p>
-        <br/>
-        <p>Best regards,<br/>DASS Event Management Team</p>
-      `
+        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e5e7eb;">
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 32px 24px; text-align: center;">
+            <h1 style="color: #ffffff; margin: 0; font-size: 24px;">🎉 You're Registered!</h1>
+          </div>
+          <div style="padding: 24px;">
+            <p style="font-size: 16px; color: #111827;">Hello <strong>${firstName}</strong>,</p>
+            <p style="color: #374151;">Your registration for <strong>${eventName}</strong> has been confirmed.</p>
+            <div style="background: #f3f4f6; border-radius: 8px; padding: 16px; margin: 16px 0;">
+              <p style="margin: 0; color: #6b7280; font-size: 13px; text-transform: uppercase; font-weight: 600;">Event Date</p>
+              <p style="margin: 4px 0 0; color: #111827; font-size: 15px;">${eventDate}</p>
+            </div>
+            ${qrSection}
+            <p style="color: #6b7280; font-size: 13px;">You can also view your ticket anytime from your DASS Dashboard.</p>
+          </div>
+          <div style="background: #f9fafb; padding: 16px 24px; text-align: center; border-top: 1px solid #e5e7eb;">
+            <p style="margin: 0; color: #9ca3af; font-size: 12px;">DASS Event Management Team</p>
+          </div>
+        </div>
+      `,
+      attachments
     });
     console.log(`Event registration email sent to ${email}`);
   } catch (error) {

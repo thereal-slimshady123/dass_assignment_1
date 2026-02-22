@@ -106,13 +106,15 @@ export const addRegistration = async ({ event, user, teamName }) => {
     console.error('Failed to update event registration count:', error);
   }
 
-  // Send event registration confirmation email
+  // Send event registration confirmation email (with QR code)
   try {
     await axios.post(`${API_BASE}/auth/send-event-email`, {
       email: user?.email,
       firstName: user?.firstName,
       eventName: event.eventName,
-      eventDate: new Date(event.event_start).toLocaleString()
+      eventDate: new Date(event.event_start).toLocaleString(),
+      ticketId,
+      qrDataUrl: qr   // base64 PNG data URL of the QR code
     });
   } catch (error) {
     console.error('Failed to send event registration email:', error);
