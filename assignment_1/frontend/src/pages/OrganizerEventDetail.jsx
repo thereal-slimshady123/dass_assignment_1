@@ -10,7 +10,7 @@ export default function OrganizerEventDetail() {
   const { eventId } = useParams();
   const user = useMemo(() => loadUser(), []);
   const allRegistrations = useMemo(() => loadRegistrations(), []);
-  
+
   const [darkMode, setDarkMode] = useState(false);
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -139,18 +139,18 @@ export default function OrganizerEventDetail() {
   return (
     <div className={darkMode ? 'user-root-dark' : 'user-root'}>
       <OrganizerNav darkMode={darkMode} />
-      
+
       <header className={darkMode ? 'user-header-dark' : 'user-header'}>
         <h1>{event.eventName}</h1>
         <div className="header-actions">
-          <button 
-            onClick={() => setDarkMode(!darkMode)} 
+          <button
+            onClick={() => setDarkMode(!darkMode)}
             className="small-btn"
           >
             {darkMode ? 'Light' : 'Dark'} Mode
           </button>
-          <button 
-            onClick={() => navigate('/organizer-dashboard')} 
+          <button
+            onClick={() => navigate('/organizer-dashboard')}
             className="secondary-btn"
           >
             Back
@@ -238,8 +238,8 @@ export default function OrganizerEventDetail() {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="input"
               />
-              <select 
-                value={filterStatus} 
+              <select
+                value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
                 className="input"
               >
@@ -247,8 +247,8 @@ export default function OrganizerEventDetail() {
                 <option value="attended">Attended</option>
                 <option value="pending">Pending</option>
               </select>
-              <select 
-                value={sortBy} 
+              <select
+                value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
                 className="input"
               >
@@ -292,7 +292,10 @@ export default function OrganizerEventDetail() {
           <div className="section-card">
             <h3>Event Actions</h3>
             <div className="button-group">
-              <button className="primary-btn" onClick={() => navigate(`/organizer-edit-event/${event.id}`)}>
+              <button className="primary-btn" onClick={() => navigate(`/organizer-event/${event.id || event._id}/attendance`)}>
+                📷 Scan Attendance
+              </button>
+              <button className="secondary-btn" onClick={() => navigate(`/organizer-edit-event/${event.id}`)}>
                 Edit Event
               </button>
               <button className="secondary-btn" onClick={() => navigate('/organizer-dashboard')}>

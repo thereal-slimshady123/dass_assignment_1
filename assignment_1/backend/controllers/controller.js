@@ -4,6 +4,7 @@ const Club = require('../models/Club');
 const Organizer = require('../models/Organizer');
 const Event = require('../models/events');
 const PasswordChangeRequest = require('../models/PasswordChangeRequest');
+const Attendance = require('../models/Attendance');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { sendRegistrationEmail, sendOrganizerCredentialsEmail, sendPasswordResetEmail, sendEventRegistrationEmail, sendPasswordChangeEmail } = require('../config/email');
@@ -785,6 +786,27 @@ const getAllOrganizers = async (req, res) => {
   }
 };
 
+// Get public organizer list (for user-facing pages)
+const getPublicOrganizers = async (req, res) => {
+  try {
+    const organizers = await User.find({ role: 'organizer', status: 'active' })
+      .select('firstName lastName organizerName organizerCategory organizerDescription contactEmail _id');
+    res.status(200).json({
+      success: true,
+      organizers: organizers.map(org => ({
+        id: org._id,
+        name: org.organizerName || `${org.firstName} ${org.lastName}`,
+        category: org.organizerCategory || 'club',
+        description: org.organizerDescription || '',
+        email: org.contactEmail || ''
+      }))
+    });
+  } catch (error) {
+    console.error('Get public organizers error:', error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
 // Get all clubs
 const getAllClubs = async (req, res) => {
   try {
@@ -1079,6 +1101,246 @@ const rejectPasswordChangeRequest = async (req, res) => {
   }
 };
 
+// ============ ATTENDANCE TRACKING ============
+
+// Scan attendance — validate ticket & reject duplicates
+const scanAttendance = async (req, res) => {
+  try {
+    const { eventId, ticketId, participantName, participantEmail } = req.body;
+
+    if (!eventId || !ticketId) {
+      return res.status(400).json({ success: false, message: 'Event ID and Ticket ID are required' });
+    }
+
+    // Verify event exists
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({ success: false, message: 'Event not found' });
+    }
+
+    // Check for duplicate scan
+    const existing = await Attendance.findOne({ eventId, ticketId });
+    if (existing) {
+      return res.status(409).json({
+        success: false,
+        message: 'Duplicate scan — this ticket has already been scanned',
+        duplicate: true,
+        originalScan: {
+          scannedAt: existing.scannedAt,
+          participantName: existing.participantName,
+          participantEmail: existing.participantEmail
+        }
+      });
+    }
+
+    // Create attendance record
+    const attendance = await Attendance.create({
+      eventId,
+      ticketId,
+      participantName: participantName || '',
+      participantEmail: participantEmail || '',
+      scannedAt: new Date(),
+      scannedBy: req.user.id || req.user._id,
+      isManualOverride: false,
+      auditLog: [{
+        action: 'QR_SCAN',
+        performedBy: req.user.id || req.user._id,
+        timestamp: new Date(),
+        details: `Ticket ${ticketId} scanned via QR code`
+      }]
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Attendance recorded successfully',
+      attendance: {
+        id: attendance._id,
+        ticketId: attendance.ticketId,
+        participantName: attendance.participantName,
+        participantEmail: attendance.participantEmail,
+        scannedAt: attendance.scannedAt
+      }
+    });
+  } catch (error) {
+    // Handle MongoDB duplicate key error
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: 'Duplicate scan — this ticket has already been scanned',
+        duplicate: true
+      });
+    }
+    console.error('Scan attendance error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// Get attendance dashboard for an event
+const getAttendanceDashboard = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+
+    if (!eventId) {
+      return res.status(400).json({ success: false, message: 'Event ID is required' });
+    }
+
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({ success: false, message: 'Event not found' });
+    }
+
+    const scannedRecords = await Attendance.find({ eventId })
+      .sort({ scannedAt: -1 })
+      .lean();
+
+    const totalRegistered = event.reg_count || 0;
+    const totalScanned = scannedRecords.length;
+    const notScanned = Math.max(0, totalRegistered - totalScanned);
+    const attendanceRate = totalRegistered > 0
+      ? Math.round((totalScanned / totalRegistered) * 100)
+      : 0;
+
+    res.status(200).json({
+      success: true,
+      dashboard: {
+        totalRegistered,
+        totalScanned,
+        notScanned,
+        attendanceRate,
+        scannedList: scannedRecords.map(r => ({
+          id: r._id,
+          ticketId: r.ticketId,
+          participantName: r.participantName,
+          participantEmail: r.participantEmail,
+          scannedAt: r.scannedAt,
+          isManualOverride: r.isManualOverride,
+          overrideReason: r.overrideReason
+        }))
+      }
+    });
+  } catch (error) {
+    console.error('Get attendance dashboard error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// Manual override — mark attendance manually with audit log
+const manualOverride = async (req, res) => {
+  try {
+    const { eventId, ticketId, participantName, participantEmail, reason } = req.body;
+
+    if (!eventId || !ticketId) {
+      return res.status(400).json({ success: false, message: 'Event ID and Ticket ID are required' });
+    }
+
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ success: false, message: 'Override reason is required for audit purposes' });
+    }
+
+    // Verify event exists
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({ success: false, message: 'Event not found' });
+    }
+
+    // Check for duplicate
+    const existing = await Attendance.findOne({ eventId, ticketId });
+    if (existing) {
+      return res.status(409).json({
+        success: false,
+        message: 'This ticket has already been marked as attended',
+        duplicate: true,
+        originalScan: {
+          scannedAt: existing.scannedAt,
+          participantName: existing.participantName,
+          isManualOverride: existing.isManualOverride
+        }
+      });
+    }
+
+    const attendance = await Attendance.create({
+      eventId,
+      ticketId,
+      participantName: participantName || '',
+      participantEmail: participantEmail || '',
+      scannedAt: new Date(),
+      scannedBy: req.user.id || req.user._id,
+      isManualOverride: true,
+      overrideReason: reason.trim(),
+      auditLog: [{
+        action: 'MANUAL_OVERRIDE',
+        performedBy: req.user.id || req.user._id,
+        timestamp: new Date(),
+        details: `Manual override by organizer. Reason: ${reason.trim()}`
+      }]
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Manual attendance override recorded with audit log',
+      attendance: {
+        id: attendance._id,
+        ticketId: attendance.ticketId,
+        participantName: attendance.participantName,
+        participantEmail: attendance.participantEmail,
+        scannedAt: attendance.scannedAt,
+        isManualOverride: true,
+        overrideReason: attendance.overrideReason
+      }
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: 'This ticket has already been marked as attended',
+        duplicate: true
+      });
+    }
+    console.error('Manual override error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// Export attendance report as CSV
+const exportAttendanceCSV = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+
+    if (!eventId) {
+      return res.status(400).json({ success: false, message: 'Event ID is required' });
+    }
+
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({ success: false, message: 'Event not found' });
+    }
+
+    const records = await Attendance.find({ eventId }).sort({ scannedAt: 1 }).lean();
+
+    const headers = ['Ticket ID', 'Participant Name', 'Participant Email', 'Scanned At', 'Manual Override', 'Override Reason'];
+    const rows = records.map(r => [
+      r.ticketId,
+      r.participantName || 'N/A',
+      r.participantEmail || 'N/A',
+      new Date(r.scannedAt).toISOString(),
+      r.isManualOverride ? 'Yes' : 'No',
+      r.overrideReason || ''
+    ]);
+
+    const csv = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${event.eventName}-attendance.csv"`);
+    res.status(200).send(csv);
+  } catch (error) {
+    console.error('Export attendance CSV error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -1099,6 +1361,7 @@ module.exports = {
   updateOrganizerProfile,
   incrementEventRegistration,
   getAllOrganizers,
+  getPublicOrganizers,
   getAllClubs,
   updateOrganizerStatus,
   updateClubStatus,
@@ -1106,5 +1369,9 @@ module.exports = {
   clearPasswordResetRequest,
   getPasswordChangeRequests,
   approvePasswordChangeRequest,
-  rejectPasswordChangeRequest
+  rejectPasswordChangeRequest,
+  scanAttendance,
+  getAttendanceDashboard,
+  manualOverride,
+  exportAttendanceCSV
 };

@@ -20,28 +20,30 @@ const OrganizerDashboard = lazy(() => import('./pages/OrganizerDashboard.jsx'));
 const OrganizerCreateEvent = lazy(() => import('./pages/OrganizerCreateEvent.jsx'));
 const OrganizerEventDetail = lazy(() => import('./pages/OrganizerEventDetail.jsx'));
 const OrganizerProfile = lazy(() => import('./pages/OrganizerProfile.jsx'));
+const QRAttendanceScanner = lazy(() => import('./pages/QRAttendanceScanner.jsx'));
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
       <Suspense fallback={<div style={{ padding: '20px', textAlign: 'center' }}>Loading...</div>}>
         <Routes>
-          <Route path="/" element={<Login /> } />
-          <Route path="/forgot-password" element={<ForgotPassword /> } />
-          <Route path="/reset-password" element={<ResetPassword /> } />
-          <Route path="/user" element={<UserDashboard /> } />
-          <Route path="/events" element={<BrowseEvents /> } />
-          <Route path="/events/:eventId" element={<EventDetails /> } />
-          <Route path="/clubs" element={<ClubsOrganizers /> } />
-          <Route path="/organizers/:organizerId" element={<OrganizerDetail /> } />
-          <Route path="/profile" element={<Profile /> } />
-          <Route path="/admin" element={<Admin /> } />
-          <Route path="/organizer" element={<Organizer /> } />
-          <Route path="/interests" element={<Interests /> } />
-          <Route path="/organizer-dashboard" element={<OrganizerDashboard /> } />
-          <Route path="/organizer-create-event" element={<OrganizerCreateEvent /> } />
-          <Route path="/organizer-event/:eventId" element={<OrganizerEventDetail /> } />
-          <Route path="/organizer-profile" element={<OrganizerProfile /> } />
+          <Route path="/" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/user" element={<UserDashboard />} />
+          <Route path="/events" element={<BrowseEvents />} />
+          <Route path="/events/:eventId" element={<EventDetails />} />
+          <Route path="/clubs" element={<ClubsOrganizers />} />
+          <Route path="/organizers/:organizerId" element={<OrganizerDetail />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/admin" element={<Admin />} />
+          <Route path="/organizer" element={<Organizer />} />
+          <Route path="/interests" element={<Interests />} />
+          <Route path="/organizer-dashboard" element={<OrganizerDashboard />} />
+          <Route path="/organizer-create-event" element={<OrganizerCreateEvent />} />
+          <Route path="/organizer-event/:eventId" element={<OrganizerEventDetail />} />
+          <Route path="/organizer-event/:eventId/attendance" element={<QRAttendanceScanner />} />
+          <Route path="/organizer-profile" element={<OrganizerProfile />} />
         </Routes>
       </Suspense>
     </BrowserRouter>

@@ -175,3 +175,41 @@ export const rejectPasswordChangeRequest = (data) => {
     }
   });
 };
+
+// Attendance tracking APIs
+export const scanAttendance = (data) => {
+  const token = localStorage.getItem('token');
+  return axios.post(`${API}/scan-attendance`, data, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+};
+
+export const getAttendanceDashboard = (eventId) => {
+  const token = localStorage.getItem('token');
+  return axios.get(`${API}/attendance-dashboard/${eventId}`, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+};
+
+export const manualOverrideAttendance = (data) => {
+  const token = localStorage.getItem('token');
+  return axios.post(`${API}/manual-override`, data, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+};
+
+export const exportAttendanceCSV = (eventId) => {
+  const token = localStorage.getItem('token');
+  return axios.get(`${API}/export-attendance/${eventId}`, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    },
+    responseType: 'blob'
+  });
+};

@@ -3,24 +3,37 @@ import { Link, useParams } from "react-router-dom";
 import UserNav from "../components/UserNav";
 import "../components/user.css";
 import { getEvents } from "../services/AuthAPI";
+import axios from "axios";
+
+const API_BASE = "http://localhost:5000/api";
 
 export default function OrganizerDetail() {
   const { organizerId } = useParams();
+  const [organizer, setOrganizer] = useState(null);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
     let isMounted = true;
-    const fetchEvents = async () => {
+    const fetchData = async () => {
       try {
-        const response = await getEvents();
+        // Fetch organizer from User model
+        const orgRes = await axios.get(`${API_BASE}/auth/public-organizers`);
+        const allOrganizers = orgRes.data.organizers || [];
+        const found = allOrganizers.find(o => o.id === organizerId);
+
+        // Fetch events for upcoming/past sections
+        const evtRes = await getEvents();
+
         if (isMounted) {
-          setEvents(response.data.events || []);
+          setOrganizer(found || null);
+          setEvents(evtRes.data.events || []);
+          if (!found) setErrorMsg("Organizer not found.");
         }
       } catch (error) {
         if (isMounted) {
-          setErrorMsg("Organizer not found.");
+          setErrorMsg("Could not load organizer details.");
         }
       } finally {
         if (isMounted) {
@@ -28,15 +41,9 @@ export default function OrganizerDetail() {
         }
       }
     };
-    fetchEvents();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  const organizer = useMemo(() => {
-    return events.find((event) => event.organizer?.id === organizerId)?.organizer;
-  }, [events, organizerId]);
+    fetchData();
+    return () => { isMounted = false; };
+  }, [organizerId]);
 
   const upcomingEvents = useMemo(() => {
     const now = new Date();
@@ -51,6 +58,11 @@ export default function OrganizerDetail() {
       (event) => event.organizer?.id === organizerId && new Date(event.event_end) < now
     );
   }, [events, organizerId]);
+
+  const categoryLabel = (cat) => {
+    const labels = { club: 'Club', council: 'Council', fest_team: 'Fest Team' };
+    return labels[cat] || cat;
+  };
 
   if (loading) {
     return (
@@ -85,7 +97,7 @@ export default function OrganizerDetail() {
         <section className="content">
           <div className="section-card">
             <h3>Organizer Info</h3>
-            <p className="muted">{organizer.category || "Organizer"}</p>
+            <p className="muted">{categoryLabel(organizer.category)}</p>
             <p>{organizer.description || "No description available."}</p>
             <p className="muted">Contact: {organizer.email || "N/A"}</p>
           </div>
@@ -128,3 +140,4 @@ export default function OrganizerDetail() {
     </div>
   );
 }
+

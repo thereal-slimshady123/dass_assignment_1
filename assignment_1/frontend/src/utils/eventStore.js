@@ -67,7 +67,11 @@ export const generateTicketId = () => {
 
 export const addRegistration = async ({ event, user, teamName }) => {
   const ticketId = generateTicketId();
-  const qr = await buildQrCode(ticketId);
+  const participantName = `${user?.firstName || ""} ${user?.lastName || ""}`.trim();
+  const participantEmail = user?.email || "";
+  // Embed full participant info into QR so organizer scanner can read it without localStorage
+  const qrPayload = JSON.stringify({ ticketId, name: participantName, email: participantEmail });
+  const qr = await buildQrCode(qrPayload);
 
   const record = {
     id: ticketId,

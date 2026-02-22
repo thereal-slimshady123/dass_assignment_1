@@ -1,23 +1,25 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import UserNav from "../components/UserNav";
 import "../components/user.css";
 import { loadPreferences, toggleFollowedClub } from "../utils/profileStore";
-import { getEvents } from "../services/AuthAPI";
+import axios from "axios";
+
+const API_BASE = "http://localhost:5000/api";
 
 export default function ClubsOrganizers() {
-  const [events, setEvents] = useState([]);
+  const [organizers, setOrganizers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
   const [preferences, setPreferences] = useState(() => loadPreferences());
 
   useEffect(() => {
     let isMounted = true;
-    const fetchEvents = async () => {
+    const fetchOrganizers = async () => {
       try {
-        const response = await getEvents();
+        const response = await axios.get(`${API_BASE}/auth/public-organizers`);
         if (isMounted) {
-          setEvents(response.data.events || []);
+          setOrganizers(response.data.organizers || []);
         }
       } catch (error) {
         if (isMounted) {
@@ -29,25 +31,20 @@ export default function ClubsOrganizers() {
         }
       }
     };
-    fetchEvents();
+    fetchOrganizers();
     return () => {
       isMounted = false;
     };
   }, []);
 
-  const organizers = useMemo(() => {
-    const map = new Map();
-    events.forEach((event) => {
-      if (event.organizer?.id) {
-        map.set(event.organizer.id, event.organizer);
-      }
-    });
-    return Array.from(map.values());
-  }, [events]);
-
   const handleToggle = (clubName) => {
     const next = toggleFollowedClub(clubName);
     setPreferences(next);
+  };
+
+  const categoryLabel = (cat) => {
+    const labels = { club: 'Club', council: 'Council', fest_team: 'Fest Team' };
+    return labels[cat] || cat;
   };
 
   return (
@@ -73,7 +70,7 @@ export default function ClubsOrganizers() {
                 return (
                   <article key={org.id} className="card">
                     <h4>{org.name}</h4>
-                    <p className="muted">{org.category || "Organizer"}</p>
+                    <p className="muted">{categoryLabel(org.category)}</p>
                     <p className="muted">{org.description || "No description available."}</p>
                     <div className="card-actions">
                       <Link to={`/organizers/${org.id}`} className="small-btn">
@@ -97,3 +94,4 @@ export default function ClubsOrganizers() {
     </div>
   );
 }
+
