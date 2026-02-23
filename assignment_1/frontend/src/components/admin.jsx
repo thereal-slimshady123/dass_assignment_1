@@ -16,6 +16,7 @@ export default function Admin() {
     const [passwordChangeRequests, setPasswordChangeRequests] = useState([]);
     const [message, setMessage] = useState('');
     const [generatedCredentials, setGeneratedCredentials] = useState(null);
+    const [latestApprovedCredentials, setLatestApprovedCredentials] = useState(null);
 
     // Management states
     const [managementTab, setManagementTab] = useState('organizers'); // 'organizers' or 'clubs'
@@ -247,7 +248,7 @@ export default function Admin() {
                     <h4>📊 Statistics</h4>
                     <p className="muted">Total Organizers: {organizers.length}</p>
                     <p className="muted">Total Clubs: {clubs.length}</p>
-                    <p className="muted">Password Change Requests: {passwordChangeRequests.length}</p>
+                    <p className="muted">Pending Organizer Reset Requests: {passwordChangeRequests.filter((req) => req.status === 'pending').length}</p>
                     <p className="muted">Forgot Password Requests: {passwordResetRequests.length}</p>
                     <button
                         className="small-btn"
@@ -298,7 +299,7 @@ export default function Admin() {
                     <p className="muted">
                         {passwordChangeRequests.length === 0 && passwordResetRequests.length === 0
                             ? 'No pending password requests.'
-                            : `${passwordChangeRequests.length} change request${passwordChangeRequests.length !== 1 ? 's' : ''}, ${passwordResetRequests.length} forgot password request${passwordResetRequests.length !== 1 ? 's' : ''}.`}
+                            : `${passwordChangeRequests.filter((req) => req.status === 'pending').length} organizer reset request${passwordChangeRequests.filter((req) => req.status === 'pending').length !== 1 ? 's' : ''}, ${passwordResetRequests.length} forgot password request${passwordResetRequests.length !== 1 ? 's' : ''}.`}
                     </p>
                     <button
                         className="small-btn"
@@ -641,11 +642,18 @@ export default function Admin() {
     };
 
     const handleApprovePasswordChange = async (requestId) => {
-        const adminNotes = prompt('Optional: Enter admin notes for this approval:');
+        const adminNotes = prompt('Optional: Enter approval comment for this reset request:');
 
         try {
             const response = await approvePasswordChangeRequest({ requestId, adminNotes: adminNotes || '' });
             setMessage(response.data.message || 'Password change request approved successfully!');
+            if (response.data.generatedPassword) {
+                setLatestApprovedCredentials({
+                    organizerName: response.data.organizerName,
+                    organizerEmail: response.data.organizerEmail,
+                    generatedPassword: response.data.generatedPassword
+                });
+            }
             fetchPasswordChangeRequests();
             setTimeout(() => setMessage(''), 3000);
         } catch (error) {
@@ -654,11 +662,11 @@ export default function Admin() {
     };
 
     const handleRejectPasswordChange = async (requestId) => {
-        const adminNotes = prompt('Enter reason for rejection:');
-        if (!adminNotes) return;
+        const adminNotes = prompt('Enter rejection comment (required):');
+        if (!adminNotes || !adminNotes.trim()) return;
 
         try {
-            const response = await rejectPasswordChangeRequest({ requestId, adminNotes });
+            const response = await rejectPasswordChangeRequest({ requestId, adminNotes: adminNotes.trim() });
             setMessage(response.data.message || 'Password change request rejected successfully!');
             fetchPasswordChangeRequests();
             setTimeout(() => setMessage(''), 3000);
@@ -725,12 +733,28 @@ export default function Admin() {
 
                 {requestTab === 'change' && (
                     <>
-                        <p className="muted">Organizers who have submitted requests to change their password (requires admin approval).</p>
+                        <p className="muted">Organizer password reset requests with full status tracking and processing comments.</p>
+
+                        {latestApprovedCredentials && (
+                            <div style={{
+                                marginBottom: '16px',
+                                padding: '12px',
+                                borderRadius: '6px',
+                                backgroundColor: '#28a745',
+                                color: '#fff'
+                            }}>
+                                <h4 style={{ margin: '0 0 8px' }}>✅ New Password Generated</h4>
+                                <p style={{ margin: '4px 0' }}><strong>Organizer:</strong> {latestApprovedCredentials.organizerName}</p>
+                                <p style={{ margin: '4px 0' }}><strong>Email:</strong> {latestApprovedCredentials.organizerEmail}</p>
+                                <p style={{ margin: '4px 0' }}><strong>Temporary Password:</strong> {latestApprovedCredentials.generatedPassword}</p>
+                                <p style={{ margin: '8px 0 0', fontSize: '12px' }}>Share this password securely with the organizer.</p>
+                            </div>
+                        )}
 
                         {passwordChangeRequests.length === 0 ? (
                             <div className="card">
-                                <h4>📋 No Pending Requests</h4>
-                                <p className="muted">There are currently no pending password change requests.</p>
+                                <h4>📋 No Requests</h4>
+                                <p className="muted">No organizer password reset requests found.</p>
                             </div>
                         ) : (
                             <div style={{ overflowX: 'auto' }}>
@@ -742,10 +766,13 @@ export default function Admin() {
                                     <thead>
                                         <tr style={{ backgroundColor: darkMode ? '#3a3a3a' : '#f5f5f5' }}>
                                             <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #444' }}>Name</th>
+                                            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #444' }}>Club Name</th>
                                             <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #444' }}>Email</th>
-                                            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #444' }}>Role</th>
                                             <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #444' }}>Reason</th>
+                                            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #444' }}>Status</th>
+                                            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #444' }}>Admin Comment</th>
                                             <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #444' }}>Requested</th>
+                                            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #444' }}>Processed</th>
                                             <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #444' }}>Actions</th>
                                         </tr>
                                     </thead>
@@ -756,45 +783,52 @@ export default function Admin() {
                                             return (
                                                 <tr key={request._id} style={{ borderBottom: `1px solid ${darkMode ? '#444' : '#ddd'}` }}>
                                                     <td style={{ padding: '12px' }}>{request.userName}</td>
+                                                    <td style={{ padding: '12px' }}>{request.clubName || '-'}</td>
                                                     <td style={{ padding: '12px' }}>{request.userEmail}</td>
+                                                    <td style={{ padding: '12px' }}>{request.reason || 'No reason provided'}</td>
                                                     <td style={{ padding: '12px' }}>
                                                         <span style={{
                                                             padding: '4px 8px',
                                                             borderRadius: '4px',
                                                             fontSize: '12px',
-                                                            backgroundColor: '#4dabf7',
-                                                            color: '#fff'
+                                                            backgroundColor: request.status === 'approved' ? '#28a745' : request.status === 'rejected' ? '#dc3545' : '#ffc107',
+                                                            color: request.status === 'pending' ? '#111' : '#fff'
                                                         }}>
-                                                            {request.userRole}
+                                                            {request.status?.toUpperCase()}
                                                         </span>
                                                     </td>
-                                                    <td style={{ padding: '12px' }}>{request.reason || 'No reason provided'}</td>
+                                                    <td style={{ padding: '12px' }}>{request.adminNotes || '-'}</td>
                                                     <td style={{ padding: '12px' }}>{requestedAt.toLocaleString()}</td>
+                                                    <td style={{ padding: '12px' }}>{request.processedAt ? new Date(request.processedAt).toLocaleString() : '-'}</td>
                                                     <td style={{ padding: '12px' }}>
-                                                        <div style={{ display: 'flex', gap: '8px' }}>
-                                                            <button
-                                                                onClick={() => handleApprovePasswordChange(request._id)}
-                                                                className="small-btn"
-                                                                style={{
-                                                                    padding: '6px 12px',
-                                                                    backgroundColor: '#28a745',
-                                                                    color: '#fff'
-                                                                }}
-                                                            >
-                                                                ✓ Approve
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleRejectPasswordChange(request._id)}
-                                                                className="small-btn"
-                                                                style={{
-                                                                    padding: '6px 12px',
-                                                                    backgroundColor: '#dc3545',
-                                                                    color: '#fff'
-                                                                }}
-                                                            >
-                                                                ✗ Reject
-                                                            </button>
-                                                        </div>
+                                                        {request.status === 'pending' ? (
+                                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                                <button
+                                                                    onClick={() => handleApprovePasswordChange(request._id)}
+                                                                    className="small-btn"
+                                                                    style={{
+                                                                        padding: '6px 12px',
+                                                                        backgroundColor: '#28a745',
+                                                                        color: '#fff'
+                                                                    }}
+                                                                >
+                                                                    ✓ Approve
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleRejectPasswordChange(request._id)}
+                                                                    className="small-btn"
+                                                                    style={{
+                                                                        padding: '6px 12px',
+                                                                        backgroundColor: '#dc3545',
+                                                                        color: '#fff'
+                                                                    }}
+                                                                >
+                                                                    ✗ Reject
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="muted">Processed</span>
+                                                        )}
                                                     </td>
                                                 </tr>
                                             );
@@ -805,13 +839,12 @@ export default function Admin() {
                         )}
 
                         <div className="card" style={{ marginTop: '20px' }}>
-                            <h4>ℹ️ About Password Change Requests</h4>
+                            <h4>ℹ️ About Organizer Reset Requests</h4>
                             <p className="muted">
-                                When organizers attempt to change their password from their profile page, a request is submitted for admin approval.
-                                You must approve the request before the password is changed.
+                                Organizers submit reset requests with a reason and their club details. You can approve/reject with comments.
                             </p>
                             <p className="muted">
-                                <strong>Note:</strong> The current password is verified when the request is approved to ensure security.
+                                <strong>Note:</strong> On approval, the system auto-generates a temporary password and shows it to you for secure sharing.
                             </p>
                         </div>
                     </>

@@ -65,7 +65,7 @@ export const generateTicketId = () => {
   return `TKT-${stamp}-${rand}`;
 };
 
-export const addRegistration = async ({ event, user, teamName }) => {
+export const addRegistration = async ({ event, user, teamName, customFormResponses = {} }) => {
   const ticketId = generateTicketId();
   const participantName = `${user?.firstName || ""} ${user?.lastName || ""}`.trim();
   const participantEmail = user?.email || "";
@@ -84,6 +84,7 @@ export const addRegistration = async ({ event, user, teamName }) => {
       end: event.event_end
     },
     teamName: teamName || "",
+    customFormResponses,
     participant: {
       id: user?.id || "",
       name: `${user?.firstName || ""} ${user?.lastName || ""}`.trim(),

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import OrganizerNav from '../components/OrganizerNav';
 import '../components/user.css';
 import { loadUser } from '../utils/profileStore';
+import { requestOrganizerPasswordReset, getOrganizerPasswordResetHistory } from '../services/AuthAPI';
 
 export default function OrganizerProfile() {
   const navigate = useNavigate();
@@ -21,14 +22,19 @@ export default function OrganizerProfile() {
     enableDiscordNotifications: false
   });
 
-  const [passwordData, setPasswordData] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: '',
-    reason: ''
-  });
+  const [passwordData, setPasswordData] = useState({ reason: '' });
+  const [passwordRequestHistory, setPasswordRequestHistory] = useState([]);
 
   const [showPasswordChange, setShowPasswordChange] = useState(false);
+
+  const loadPasswordRequestHistory = async () => {
+    try {
+      const response = await getOrganizerPasswordResetHistory();
+      setPasswordRequestHistory(response.data.requests || []);
+    } catch (error) {
+      console.error('Failed to load password reset history:', error);
+    }
+  };
 
   useEffect(() => {
     if (!user || user.role !== 'organizer') {
@@ -47,6 +53,8 @@ export default function OrganizerProfile() {
         contactEmail: user.email
       }));
     }
+
+    loadPasswordRequestHistory();
   }, [user, navigate]);
 
   const handleProfileChange = (field, value) => {
@@ -162,44 +170,21 @@ export default function OrganizerProfile() {
     e.preventDefault();
     setMessage('');
 
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      setMessage('Passwords do not match');
-      return;
-    }
-
-    if (passwordData.newPassword.length < 6) {
-      setMessage('Password must be at least 6 characters');
+    if (!passwordData.reason.trim()) {
+      setMessage('Please provide reason for password reset request');
       return;
     }
 
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/auth/change-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          email: user.email,
-          currentPassword: passwordData.currentPassword,
-          newPassword: passwordData.newPassword,
-          reason: passwordData.reason
-        })
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setMessage('✓ Password change request submitted successfully! Please wait for admin approval.');
-        setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '', reason: '' });
-        setShowPasswordChange(false);
-        setTimeout(() => setMessage(''), 5000);
-      } else {
-        setMessage(data.message || 'Failed to submit password change request');
-      }
+      const response = await requestOrganizerPasswordReset({ reason: passwordData.reason.trim() });
+      setMessage(response.data.message || 'Password reset request submitted successfully!');
+      setPasswordData({ reason: '' });
+      setShowPasswordChange(false);
+      await loadPasswordRequestHistory();
+      setTimeout(() => setMessage(''), 5000);
     } catch (error) {
-      setMessage('Error: ' + error.message);
+      setMessage(error.response?.data?.message || ('Error: ' + error.message));
     } finally {
       setLoading(false);
     }
@@ -378,6 +363,45 @@ export default function OrganizerProfile() {
         <section className="section-card">
           <h3>Security</h3>
 
+          {passwordRequestHistory.length > 0 && (
+            <div style={{ marginBottom: '16px' }}>
+              <h4 style={{ marginBottom: '10px' }}>Password Reset History</h4>
+              <div style={{ display: 'grid', gap: '10px' }}>
+                {passwordRequestHistory.map((request) => (
+                  <div
+                    key={request._id}
+                    style={{
+                      border: `1px solid ${darkMode ? '#444' : '#ddd'}`,
+                      borderRadius: '8px',
+                      padding: '10px 12px',
+                      backgroundColor: darkMode ? '#232323' : '#fafafa'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: 600 }}>{new Date(request.createdAt).toLocaleString()}</span>
+                      <span
+                        style={{
+                          padding: '2px 10px',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          backgroundColor:
+                            request.status === 'approved' ? '#28a745' :
+                              request.status === 'rejected' ? '#dc3545' : '#ffc107',
+                          color: request.status === 'pending' ? '#111' : '#fff'
+                        }}
+                      >
+                        {request.status?.toUpperCase()}
+                      </span>
+                    </div>
+                    <p style={{ margin: '8px 0 4px' }}><strong>Reason:</strong> {request.reason || 'Not specified'}</p>
+                    {request.adminNotes && <p style={{ margin: 0 }}><strong>Admin Comment:</strong> {request.adminNotes}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {!showPasswordChange ? (
             <button
               className="secondary-btn"
@@ -387,41 +411,12 @@ export default function OrganizerProfile() {
             </button>
           ) : (
             <form onSubmit={handleChangePassword}>
-              <label>Current Password *</label>
-              <input
-                type="password"
-                placeholder="Enter current password"
-                value={passwordData.currentPassword}
-                onChange={(e) => handlePasswordChange('currentPassword', e.target.value)}
-                required
-                style={inputStyle(darkMode)}
-              />
-
-              <label>New Password *</label>
-              <input
-                type="password"
-                placeholder="Enter new password (min 6 characters)"
-                value={passwordData.newPassword}
-                onChange={(e) => handlePasswordChange('newPassword', e.target.value)}
-                required
-                style={inputStyle(darkMode)}
-              />
-
-              <label>Confirm Password *</label>
-              <input
-                type="password"
-                placeholder="Confirm new password"
-                value={passwordData.confirmPassword}
-                onChange={(e) => handlePasswordChange('confirmPassword', e.target.value)}
-                required
-                style={inputStyle(darkMode)}
-              />
-
-              <label>Reason for Password Change (Optional)</label>
+              <label>Reason for Password Reset *</label>
               <textarea
-                placeholder="Explain why you need to change your password"
+                placeholder="Explain why you need an admin-assisted password reset"
                 value={passwordData.reason}
                 onChange={(e) => handlePasswordChange('reason', e.target.value)}
+                required
                 style={{ ...inputStyle(darkMode), minHeight: '80px', resize: 'vertical' }}
               />
 
@@ -434,7 +429,7 @@ export default function OrganizerProfile() {
                 border: '1px solid #ffc107',
                 fontSize: '13px'
               }}>
-                ⚠️ <strong>Note:</strong> Password change requests require admin approval. Admin will review and approve/reject your request.
+                ⚠️ <strong>Note:</strong> Admin will approve/reject this request with comments. If approved, admin generates and shares a new temporary password.
               </div>
 
               <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
@@ -450,7 +445,7 @@ export default function OrganizerProfile() {
                   className="secondary-btn"
                   onClick={() => {
                     setShowPasswordChange(false);
-                    setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '', reason: '' });
+                    setPasswordData({ reason: '' });
                   }}
                 >
                   Cancel

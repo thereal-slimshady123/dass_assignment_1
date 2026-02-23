@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import UserNav from "../components/UserNav";
 import "../components/user.css";
 import { loadUser } from "../utils/profileStore";
-import { getEventById, createMerchandiseOrder } from "../services/AuthAPI";
+import { getEventById, createMerchandiseOrder, getUserMerchandiseOrders } from "../services/AuthAPI";
 import { addRegistration, updateEventOnRegister, loadRegistrations } from "../utils/eventStore";
 
 export default function EventDetails() {
@@ -21,7 +21,9 @@ export default function EventDetails() {
   const [paymentProofFile, setPaymentProofFile] = useState(null);
   const [paymentProofPreview, setPaymentProofPreview] = useState(null);
   const [submitting, setSubmitting] = useState(false);
-  const [existingOrder, setExistingOrder] = useState(null); // existing pending/approved order
+  const [existingOrder, setExistingOrder] = useState(null);
+  const [customFormResponses, setCustomFormResponses] = useState({});
+  const [customFormError, setCustomFormError] = useState('');
 
   useEffect(() => {
     let isMounted = true;
@@ -29,26 +31,43 @@ export default function EventDetails() {
       try {
         const response = await getEventById(eventId);
         if (isMounted) {
-          setEvent(response.data.event || null);
+          const ev = response.data.event || null;
+          setEvent(ev);
 
           const user = loadUser();
           if (user) {
-            // Check localStorage registration (non-merch or approved merch)
+            // Check localStorage registration (non-merch)
             const registrations = loadRegistrations();
             const alreadyRegistered = registrations.some(
               reg => reg.eventId === eventId && reg.participant?.email === user.email
             );
             setIsRegistered(alreadyRegistered);
 
-            // Check for an existing merchandise order via localStorage cache
-            const ordersRaw = localStorage.getItem("merchandiseOrders");
-            if (ordersRaw) {
+            // For merchandise events: fetch real order status from backend
+            if (ev?.type === "merchandise") {
               try {
-                const orders = JSON.parse(ordersRaw);
-                const found = orders.find(o => o.eventId === eventId && o.participantEmail === user.email);
+                const ordersRes = await getUserMerchandiseOrders();
+                const orders = ordersRes.data.orders || [];
+                const found = orders.find(o =>
+                  (o.eventId?.toString() === eventId || o.eventId === eventId)
+                );
                 if (found) setExistingOrder(found);
-              } catch { /* ignore */ }
+              } catch {
+                // fall through — no existing order
+              }
             }
+
+            const formFields = Array.isArray(ev?.customForm) ? ev.customForm : [];
+            const initialResponses = {};
+            formFields.forEach((field) => {
+              const key = String(field.id);
+              if (field.type === 'checkbox') {
+                initialResponses[key] = false;
+              } else {
+                initialResponses[key] = '';
+              }
+            });
+            setCustomFormResponses(initialResponses);
           }
         }
       } catch {
@@ -60,6 +79,7 @@ export default function EventDetails() {
     fetchEvent();
     return () => { isMounted = false; };
   }, [eventId]);
+
 
   if (loading) {
     return (
@@ -85,6 +105,103 @@ export default function EventDetails() {
     ? (event.stock ?? 0) <= 0
     : (event.reg_limit ?? 0) <= 0;
   const isMerchandise = event.type === "merchandise";
+  const customFormFields = Array.isArray(event.customForm) ? event.customForm : [];
+
+  const updateCustomFormResponse = (fieldId, value) => {
+    setCustomFormResponses((prev) => ({
+      ...prev,
+      [String(fieldId)]: value
+    }));
+    setCustomFormError('');
+  };
+
+  const validateCustomForm = () => {
+    const missingField = customFormFields.find((field) => {
+      if (!field?.required) return false;
+      const key = String(field.id);
+      const value = customFormResponses[key];
+
+      if (field.type === 'checkbox') return value !== true;
+      return value === undefined || value === null || String(value).trim() === '';
+    });
+
+    if (missingField) {
+      setCustomFormError(`Please fill required field: ${missingField.label || `Field ${missingField.id}`}`);
+      return false;
+    }
+
+    return true;
+  };
+
+  const renderCustomFormFieldInput = (field) => {
+    const value = customFormResponses[String(field.id)] ?? (field.type === 'checkbox' ? false : '');
+
+    if (field.type === 'textarea') {
+      return (
+        <textarea
+          value={String(value)}
+          onChange={(e) => updateCustomFormResponse(field.id, e.target.value)}
+          className="input"
+          style={{ minHeight: '90px', resize: 'vertical' }}
+          placeholder={field.label || 'Enter response'}
+        />
+      );
+    }
+
+    if (field.type === 'dropdown') {
+      const options = String(field.options || '')
+        .split(',')
+        .map((opt) => opt.trim())
+        .filter(Boolean);
+
+      return (
+        <select
+          value={String(value)}
+          onChange={(e) => updateCustomFormResponse(field.id, e.target.value)}
+          className="input"
+        >
+          <option value="">Select an option</option>
+          {options.map((option) => (
+            <option key={option} value={option}>{option}</option>
+          ))}
+        </select>
+      );
+    }
+
+    if (field.type === 'checkbox') {
+      return (
+        <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <input
+            type="checkbox"
+            checked={value === true}
+            onChange={(e) => updateCustomFormResponse(field.id, e.target.checked)}
+          />
+          <span className="muted">Check to confirm</span>
+        </label>
+      );
+    }
+
+    if (field.type === 'file') {
+      return (
+        <input
+          type="file"
+          className="input"
+          onChange={(e) => updateCustomFormResponse(field.id, e.target.files?.[0]?.name || '')}
+        />
+      );
+    }
+
+    const inputType = ['email', 'number'].includes(field.type) ? field.type : 'text';
+    return (
+      <input
+        type={inputType}
+        value={String(value)}
+        onChange={(e) => updateCustomFormResponse(field.id, e.target.value)}
+        className="input"
+        placeholder={field.label || 'Enter response'}
+      />
+    );
+  };
 
   // --- Normal event registration ---
   const handleRegister = async () => {
@@ -92,7 +209,8 @@ export default function EventDetails() {
     if (deadlinePassed || outOfStock) { setMsg("Registration is closed for this event."); return; }
     const user = loadUser();
     if (!user) { setMsg("Please log in to register."); return; }
-    await addRegistration({ event, user, teamName });
+    if (!validateCustomForm()) return;
+    await addRegistration({ event, user, teamName, customFormResponses });
     const updated = updateEventOnRegister(event);
     setEvent(updated);
     setMsg(`Registered successfully. Confirmation email sent to ${user.email || "your email"}.`);
@@ -114,6 +232,7 @@ export default function EventDetails() {
 
   // --- Merchandise: submit order ---
   const handleSubmitOrder = async () => {
+    if (!validateCustomForm()) { return; }
     if (!paymentProofFile) { setMsg("Please upload your payment proof image."); return; }
     const user = loadUser();
     if (!user) { setMsg("Please log in to continue."); return; }
@@ -131,24 +250,11 @@ export default function EventDetails() {
           const res = await createMerchandiseOrder({
             eventId: event._id || event.id,
             paymentProofImage: base64,
-            paymentProofMimeType: mimeType
+            paymentProofMimeType: mimeType,
+            customFormResponses
           });
 
-          // Cache order status in localStorage for quick lookup on revisit
-          const newOrder = {
-            eventId: event._id || event.id,
-            eventName: event.eventName,
-            participantEmail: user.email,
-            status: "pending",
-            orderId: res.data.order?.id,
-            createdAt: new Date().toISOString()
-          };
-          const ordersRaw = localStorage.getItem("merchandiseOrders");
-          const existingOrders = ordersRaw ? JSON.parse(ordersRaw) : [];
-          existingOrders.unshift(newOrder);
-          localStorage.setItem("merchandiseOrders", JSON.stringify(existingOrders));
-
-          setExistingOrder(newOrder);
+          setExistingOrder({ status: "pending", _id: res.data.order?.id });
           setMercStep("submitted");
         } catch (err) {
           const serverMsg = err.response?.data?.message;
@@ -334,6 +440,24 @@ export default function EventDetails() {
               )}
               <span className="pill">Fee: {event.reg_fee ? `INR ${event.reg_fee}` : "Free"}</span>
             </div>
+
+            {customFormFields.length > 0 && (
+              <div style={{ marginTop: '20px', marginBottom: '8px' }}>
+                <h4 style={{ marginBottom: '12px' }}>Registration Form</h4>
+                <div style={{ display: 'grid', gap: '12px' }}>
+                  {customFormFields.map((field) => (
+                    <div key={field.id} className="form-row" style={{ marginBottom: 0 }}>
+                      <label className="filter-label" style={{ display: 'block', marginBottom: '6px' }}>
+                        {field.label || `Field ${field.id}`}
+                        {field.required && <span style={{ color: '#dc2626' }}> *</span>}
+                      </label>
+                      {renderCustomFormFieldInput(field)}
+                    </div>
+                  ))}
+                </div>
+                {customFormError && <p className="message-error" style={{ marginTop: '10px' }}>{customFormError}</p>}
+              </div>
+            )}
 
             {deadlinePassed && <p className="message-error">Registration deadline has passed.</p>}
             {outOfStock && <p className="message-error">Registrations or stock are exhausted.</p>}

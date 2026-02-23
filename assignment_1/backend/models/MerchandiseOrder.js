@@ -15,9 +15,11 @@ const merchandiseOrderSchema = new mongoose.Schema({
     participantName: { type: String, default: '' },
     participantEmail: { type: String, required: true, index: true },
 
-    // Payment proof — base64 encoded image uploaded by user
+    // Payment proof — Cloudinary hosted image
     paymentProofImage: { type: String, required: true },
+    paymentProofPublicId: { type: String, default: '' },
     paymentProofMimeType: { type: String, default: 'image/jpeg' },
+    customFormResponses: { type: mongoose.Schema.Types.Mixed, default: {} },
 
     // Workflow status
     status: {

@@ -17,6 +17,24 @@ export const resetPassword = (data) =>
 export const changePassword = (data) =>
   axios.post(`${API}/change-password`, data);
 
+export const requestOrganizerPasswordReset = (data) => {
+  const token = localStorage.getItem('token');
+  return axios.post(`${API}/organizer-password-reset-request`, data, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+};
+
+export const getOrganizerPasswordResetHistory = () => {
+  const token = localStorage.getItem('token');
+  return axios.get(`${API}/organizer-password-reset-history`, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+};
+
 export const sendEventRegistrationEmail = (data) =>
   axios.post(`${API}/send-event-email`, data);
 
@@ -165,9 +183,10 @@ export const clearPasswordResetRequest = (data) => {
   });
 };
 
-export const getPasswordChangeRequests = () => {
+export const getPasswordChangeRequests = (status) => {
   const token = localStorage.getItem('token');
   return axios.get(`${API}/password-change-requests`, {
+    params: status ? { status } : undefined,
     headers: {
       Authorization: `Bearer ${token}`
     }

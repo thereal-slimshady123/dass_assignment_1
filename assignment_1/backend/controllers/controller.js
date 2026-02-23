@@ -10,6 +10,7 @@ const QRCodeLib = require('qrcode');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { sendRegistrationEmail, sendOrganizerCredentialsEmail, sendPasswordResetEmail, sendEventRegistrationEmail, sendPasswordChangeEmail } = require('../config/email');
+const { uploadDataUri } = require('../config/cloudinary');
 
 const token_generator = (id) => {
   return jwt.sign(
@@ -17,6 +18,47 @@ const token_generator = (id) => {
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRE }
   );
+};
+
+const generateTemporaryPassword = () => {
+  return crypto.randomBytes(9).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0, 12);
+};
+
+const createOrganizerResetRequestRecord = async ({ user, reason }) => {
+  const existingRequest = await PasswordChangeRequest.findOne({
+    userId: user._id,
+    status: 'pending'
+  });
+
+  if (existingRequest) {
+    return {
+      alreadyPending: true,
+      request: existingRequest
+    };
+  }
+
+  const passwordChangeRequest = await PasswordChangeRequest.create({
+    userId: user._id,
+    userEmail: user.email,
+    userName: `${user.firstName} ${user.lastName}`,
+    userRole: user.role,
+    clubName: user.organizerName || `${user.firstName} ${user.lastName}`,
+    reason,
+    status: 'pending',
+    history: [
+      {
+        status: 'pending',
+        comment: reason,
+        actedBy: user.email,
+        actedAt: new Date()
+      }
+    ]
+  });
+
+  return {
+    alreadyPending: false,
+    request: passwordChangeRequest
+  };
 };
 
 const register = async (req, res) => {
@@ -464,7 +506,7 @@ const formatEvent = (eventDoc) => {
     reg_count: eventDoc.reg_count || 0,
     registrations24h: eventDoc.registrations24h || 0,
     status: eventDoc.status || 'draft',
-    stock: eventDoc.type === 'merchandise' ? eventDoc.reg_limit : undefined,
+    stock: eventDoc.type === 'merchandise' ? Math.max(0, (eventDoc.reg_limit || 0) - (eventDoc.reg_count || 0)) : undefined,
     customForm: eventDoc.customForm,
     organizer,
     event_tags: eventDoc.event_tags || []
@@ -571,6 +613,47 @@ const changePassword = async (req, res) => {
   try {
     const { userId, email, currentPassword, newPassword, confirmPassword, reason } = req.body;
 
+    // Find user by userId or email
+    let user;
+    if (userId) {
+      user = await User.findById(userId);
+    } else if (email) {
+      user = await User.findOne({ email });
+    }
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Organizers must request admin-driven reset
+    if (user.role === 'organizer') {
+      const normalizedReason = (reason || '').trim();
+      if (!normalizedReason) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please provide reason for password reset request'
+        });
+      }
+
+      const requestResult = await createOrganizerResetRequestRecord({ user, reason: normalizedReason });
+
+      if (requestResult.alreadyPending) {
+        return res.status(409).json({
+          success: false,
+          message: 'You already have a pending password reset request. Please wait for admin action.'
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Password reset request submitted successfully. Please wait for admin approval.',
+        requestId: requestResult.request._id
+      });
+    }
+
     if ((!userId && !email) || !currentPassword || !newPassword) {
       return res.status(400).json({
         success: false,
@@ -593,59 +676,11 @@ const changePassword = async (req, res) => {
       });
     }
 
-    // Find user by userId or email
-    let user;
-    if (userId) {
-      user = await User.findById(userId);
-    } else if (email) {
-      user = await User.findOne({ email });
-    }
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
     const isPasswordCorrect = await user.comparePassword(currentPassword);
     if (!isPasswordCorrect) {
       return res.status(401).json({
         success: false,
         message: 'Current password is incorrect'
-      });
-    }
-
-    // If user is organizer, create a password change request instead of changing directly
-    if (user.role === 'organizer') {
-      // Check if there's already a pending request
-      const existingRequest = await PasswordChangeRequest.findOne({
-        userId: user._id,
-        status: 'pending'
-      });
-
-      if (existingRequest) {
-        return res.status(400).json({
-          success: false,
-          message: 'You already have a pending password change request. Please wait for admin approval.'
-        });
-      }
-
-      // Create password change request
-      const passwordChangeRequest = await PasswordChangeRequest.create({
-        userId: user._id,
-        userEmail: user.email,
-        userName: `${user.firstName} ${user.lastName}`,
-        userRole: user.role,
-        currentPassword: currentPassword, // Store for verification when admin approves
-        newPassword: newPassword, // Store temporarily (will be hashed when approved)
-        reason: reason || 'Password change requested'
-      });
-
-      return res.status(200).json({
-        success: true,
-        message: 'Password change request submitted successfully. Please wait for admin approval.',
-        requestId: passwordChangeRequest._id
       });
     }
 
@@ -662,6 +697,63 @@ const changePassword = async (req, res) => {
     });
   } catch (error) {
     console.error('Change password error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+const requestOrganizerPasswordReset = async (req, res) => {
+  try {
+    const userId = req.user.id || req.user._id;
+    const organizer = await User.findById(userId);
+
+    if (!organizer || organizer.role !== 'organizer') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only organizers can submit this request'
+      });
+    }
+
+    const reason = (req.body.reason || '').trim();
+    if (!reason) {
+      return res.status(400).json({
+        success: false,
+        message: 'Reason is required'
+      });
+    }
+
+    const requestResult = await createOrganizerResetRequestRecord({ user: organizer, reason });
+
+    if (requestResult.alreadyPending) {
+      return res.status(409).json({
+        success: false,
+        message: 'You already have a pending password reset request.'
+      });
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Password reset request submitted successfully',
+      request: requestResult.request
+    });
+  } catch (error) {
+    console.error('Request organizer password reset error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+const getOrganizerPasswordResetHistory = async (req, res) => {
+  try {
+    const userId = req.user.id || req.user._id;
+    const requests = await PasswordChangeRequest.find({ userId })
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: requests.length,
+      requests
+    });
+  } catch (error) {
+    console.error('Get organizer password reset history error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
@@ -990,12 +1082,26 @@ const clearPasswordResetRequest = async (req, res) => {
 // Get all password change requests
 const getPasswordChangeRequests = async (req, res) => {
   try {
-    const requests = await PasswordChangeRequest.find({ status: 'pending' })
+    const { status } = req.query;
+    const query = {};
+
+    if (status && ['pending', 'approved', 'rejected'].includes(status)) {
+      query.status = status;
+    }
+
+    const requests = await PasswordChangeRequest.find(query)
       .sort({ createdAt: -1 });
+
+    const counts = {
+      pending: requests.filter(r => r.status === 'pending').length,
+      approved: requests.filter(r => r.status === 'approved').length,
+      rejected: requests.filter(r => r.status === 'rejected').length
+    };
 
     res.status(200).json({
       success: true,
       count: requests.length,
+      counts,
       requests
     });
   } catch (error) {
@@ -1032,7 +1138,6 @@ const approvePasswordChangeRequest = async (req, res) => {
       });
     }
 
-    // Find the user
     const user = await User.findById(request.userId);
 
     if (!user) {
@@ -1042,32 +1147,30 @@ const approvePasswordChangeRequest = async (req, res) => {
       });
     }
 
-    // Verify current password is still correct
-    const isPasswordCorrect = await user.comparePassword(request.currentPassword);
-    if (!isPasswordCorrect) {
-      return res.status(400).json({
-        success: false,
-        message: "Current password in request is no longer valid. Request cannot be approved."
-      });
-    }
+    const generatedPassword = generateTemporaryPassword();
 
-    // Update user password
-    user.password = request.newPassword;
+    user.password = generatedPassword;
     await user.save();
 
-    // Update request status
     request.status = 'approved';
     request.processedBy = req.user.email || 'admin';
     request.processedAt = new Date();
     request.adminNotes = adminNotes || '';
+    request.generatedPasswordByAdmin = generatedPassword;
+    request.history.push({
+      status: 'approved',
+      comment: adminNotes || 'Approved by admin',
+      actedBy: req.user.email || 'admin',
+      actedAt: new Date()
+    });
     await request.save();
-
-    // Send confirmation email
-    await sendPasswordChangeEmail(user.email, user.firstName);
 
     res.status(200).json({
       success: true,
-      message: "Password change request approved and password updated successfully"
+      message: "Password reset request approved and new password generated",
+      generatedPassword,
+      organizerEmail: user.email,
+      organizerName: `${user.firstName} ${user.lastName}`
     });
   } catch (error) {
     console.error('Approve password change request error:', error);
@@ -1103,16 +1206,28 @@ const rejectPasswordChangeRequest = async (req, res) => {
       });
     }
 
-    // Update request status
+    if (!adminNotes || !adminNotes.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Rejection comment is required'
+      });
+    }
+
     request.status = 'rejected';
     request.processedBy = req.user.email || 'admin';
     request.processedAt = new Date();
-    request.adminNotes = adminNotes || 'Request rejected by admin';
+    request.adminNotes = adminNotes.trim();
+    request.history.push({
+      status: 'rejected',
+      comment: adminNotes.trim(),
+      actedBy: req.user.email || 'admin',
+      actedAt: new Date()
+    });
     await request.save();
 
     res.status(200).json({
       success: true,
-      message: "Password change request rejected"
+      message: "Password reset request rejected"
     });
   } catch (error) {
     console.error('Reject password change request error:', error);
@@ -1372,7 +1487,7 @@ const generateTicketId = () => {
 // User: create merchandise order with payment proof
 const createMerchandiseOrder = async (req, res) => {
   try {
-    const { eventId, paymentProofImage, paymentProofMimeType } = req.body;
+    const { eventId, paymentProofImage, paymentProofMimeType, customFormResponses } = req.body;
 
     if (!eventId || !paymentProofImage) {
       return res.status(400).json({ success: false, message: 'Event ID and payment proof are required' });
@@ -1383,6 +1498,29 @@ const createMerchandiseOrder = async (req, res) => {
 
     if (event.type !== 'merchandise') {
       return res.status(400).json({ success: false, message: 'This endpoint is only for merchandise events' });
+    }
+
+    const formFields = Array.isArray(event.customForm) ? event.customForm : [];
+    const answers = customFormResponses && typeof customFormResponses === 'object' ? customFormResponses : {};
+    const missingRequiredFields = formFields
+      .filter(field => field?.required)
+      .filter(field => {
+        const fieldKey = String(field.id);
+        const value = answers[fieldKey];
+
+        if (field.type === 'checkbox') {
+          return value !== true;
+        }
+
+        return value === undefined || value === null || String(value).trim() === '';
+      })
+      .map(field => field.label || `Field ${field.id}`);
+
+    if (missingRequiredFields.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Please fill all required registration fields: ${missingRequiredFields.join(', ')}`
+      });
     }
 
     // Prevent duplicate pending/approved orders from same user
@@ -1402,6 +1540,8 @@ const createMerchandiseOrder = async (req, res) => {
       });
     }
 
+    const uploadResult = await uploadDataUri(paymentProofImage, 'dass/payment-proofs');
+
     const order = await MerchandiseOrder.create({
       eventId,
       eventName: event.eventName,
@@ -1409,8 +1549,10 @@ const createMerchandiseOrder = async (req, res) => {
       userId: req.user.id || req.user._id,
       participantName: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim(),
       participantEmail: req.user.email,
-      paymentProofImage,
+      paymentProofImage: uploadResult.secure_url,
+      paymentProofPublicId: uploadResult.public_id || '',
       paymentProofMimeType: paymentProofMimeType || 'image/jpeg',
+      customFormResponses: answers,
       status: 'pending'
     });
 
@@ -1449,13 +1591,14 @@ const approveMerchandiseOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: `Order is already ${order.status}` });
     }
 
-    // Decrement stock
+    // Decrement stock (stock = reg_limit - reg_count)
     const event = await Event.findById(order.eventId);
     if (!event) return res.status(404).json({ success: false, message: 'Event not found' });
-    if ((event.stock ?? 0) <= 0) {
+    const stockRemaining = (event.reg_limit ?? 0) - (event.reg_count ?? 0);
+    if (stockRemaining <= 0) {
       return res.status(400).json({ success: false, message: 'No stock remaining for this event' });
     }
-    await Event.findByIdAndUpdate(order.eventId, { $inc: { stock: -1, reg_count: 1 } });
+    await Event.findByIdAndUpdate(order.eventId, { $inc: { reg_count: 1 } });
 
     // Generate ticket + QR (with participant info embedded)
     const ticketId = generateTicketId();
@@ -1676,6 +1819,8 @@ module.exports = {
   forgotPassword,
   resetPassword,
   changePassword,
+  requestOrganizerPasswordReset,
+  getOrganizerPasswordResetHistory,
   sendEventRegistrationEmailHandler,
   updateOrganizerProfile,
   incrementEventRegistration,

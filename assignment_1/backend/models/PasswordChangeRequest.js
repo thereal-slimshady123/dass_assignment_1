@@ -18,13 +18,17 @@ const passwordChangeRequestSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  clubName: {
+    type: String,
+    default: ''
+  },
   currentPassword: {
     type: String,
-    required: true
+    default: ''
   },
   newPassword: {
     type: String,
-    required: true
+    default: ''
   },
   reason: {
     type: String,
@@ -46,7 +50,32 @@ const passwordChangeRequestSchema = new mongoose.Schema({
   adminNotes: {
     type: String,
     default: ''
-  }
+  },
+  generatedPasswordByAdmin: {
+    type: String,
+    default: ''
+  },
+  history: [
+    {
+      status: {
+        type: String,
+        enum: ['pending', 'approved', 'rejected'],
+        required: true
+      },
+      comment: {
+        type: String,
+        default: ''
+      },
+      actedBy: {
+        type: String,
+        default: 'system'
+      },
+      actedAt: {
+        type: Date,
+        default: Date.now
+      }
+    }
+  ]
 }, {
   timestamps: true
 });
