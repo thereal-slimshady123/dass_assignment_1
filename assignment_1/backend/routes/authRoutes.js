@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { register, login, createOrganizer, deleteOrganizer, getMe, addClub, deleteClub, addEvent, deleteEvent, getEvents, getEventById, getClubs, forgotPassword, resetPassword, changePassword, sendEventRegistrationEmailHandler, updateOrganizerProfile, incrementEventRegistration, getAllOrganizers, getPublicOrganizers, getAllClubs, updateOrganizerStatus, updateClubStatus, getPasswordResetRequests, clearPasswordResetRequest, getPasswordChangeRequests, approvePasswordChangeRequest, rejectPasswordChangeRequest, scanAttendance, getAttendanceDashboard, manualOverride, exportAttendanceCSV } = require('../controllers/controller');
+const { register, login, createOrganizer, deleteOrganizer, getMe, addClub, deleteClub, addEvent, deleteEvent, getEvents, getEventById, getClubs, forgotPassword, resetPassword, changePassword, sendEventRegistrationEmailHandler, updateOrganizerProfile, incrementEventRegistration, getAllOrganizers, getPublicOrganizers, getAllClubs, updateOrganizerStatus, updateClubStatus, getPasswordResetRequests, clearPasswordResetRequest, getPasswordChangeRequests, approvePasswordChangeRequest, rejectPasswordChangeRequest, scanAttendance, getAttendanceDashboard, manualOverride, exportAttendanceCSV, createMerchandiseOrder, getMerchandiseOrders, approveMerchandiseOrder, rejectMerchandiseOrder, getUserMerchandiseOrders, updateEvent, getMyEvents } = require('../controllers/controller');
 const { protect, restrictTo } = require('../middleware/middleware');
 
 router.post('/register', register);
@@ -20,6 +20,8 @@ router.delete('/delete-event', protect, restrictTo('admin'), deleteEvent);
 router.post('/increment-event-registration', incrementEventRegistration);
 router.get('/events', getEvents);
 router.get('/events/:id', getEventById);
+router.patch('/events/:id', protect, restrictTo('organizer', 'admin'), updateEvent);
+router.get('/my-events', protect, restrictTo('organizer', 'admin'), getMyEvents);
 router.get('/clubs', getClubs);
 router.get('/public-organizers', getPublicOrganizers);
 router.get('/organizers', protect, restrictTo('admin'), getAllOrganizers);
@@ -37,5 +39,12 @@ router.post('/scan-attendance', protect, restrictTo('organizer'), scanAttendance
 router.get('/attendance-dashboard/:eventId', protect, restrictTo('organizer'), getAttendanceDashboard);
 router.post('/manual-override', protect, restrictTo('organizer'), manualOverride);
 router.get('/export-attendance/:eventId', protect, restrictTo('organizer'), exportAttendanceCSV);
+
+// Merchandise payment verification routes
+router.post('/create-merchandise-order', protect, createMerchandiseOrder);
+router.get('/merchandise-orders/:eventId', protect, restrictTo('organizer'), getMerchandiseOrders);
+router.post('/approve-merchandise-order', protect, restrictTo('organizer'), approveMerchandiseOrder);
+router.post('/reject-merchandise-order', protect, restrictTo('organizer'), rejectMerchandiseOrder);
+router.get('/my-merchandise-orders', protect, getUserMerchandiseOrders);
 
 module.exports = router;

@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import OrganizerNav from '../components/OrganizerNav';
 import '../components/user.css';
-import { getEvents } from '../services/AuthAPI';
+import { getMyEvents } from '../services/AuthAPI';
 import { loadUser } from '../utils/profileStore';
 
 export default function OrganizerDashboard() {
@@ -36,13 +36,8 @@ export default function OrganizerDashboard() {
   const loadOrganizerEvents = async () => {
     try {
       setLoading(true);
-      const response = await getEvents();
-      const allEvents = response.data.events || [];
-      // Filter events created by this organizer (in a real app, this would be filtered by backend)
-      const organizerEvents = allEvents.filter(e => 
-        e.organizer?.id === user?.id || e.organizer?.email === user?.email
-      );
-      setEvents(organizerEvents);
+      const response = await getMyEvents();
+      setEvents(response.data.events || []);
       setLastUpdated(new Date());
     } catch (error) {
       console.error('Failed to load events:', error);
@@ -78,7 +73,7 @@ export default function OrganizerDashboard() {
   return (
     <div className={darkMode ? 'user-root-dark' : 'user-root'}>
       <OrganizerNav darkMode={darkMode} />
-      
+
       <header className={darkMode ? 'user-header-dark' : 'user-header'}>
         <div>
           <h1>Organizer Dashboard</h1>
@@ -89,15 +84,15 @@ export default function OrganizerDashboard() {
           )}
         </div>
         <div className="header-actions">
-          <button 
-            onClick={loadOrganizerEvents} 
+          <button
+            onClick={loadOrganizerEvents}
             className="small-btn"
             disabled={loading}
           >
             {loading ? 'Refreshing...' : '↻ Refresh'}
           </button>
-          <button 
-            onClick={() => setDarkMode(!darkMode)} 
+          <button
+            onClick={() => setDarkMode(!darkMode)}
             className="small-btn"
           >
             {darkMode ? 'Light' : 'Dark'} Mode
@@ -133,7 +128,7 @@ export default function OrganizerDashboard() {
             ) : events.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '40px 20px' }}>
                 <p className="muted">No events created yet</p>
-                <button 
+                <button
                   className="primary-btn"
                   onClick={() => navigate('/organizer-create-event')}
                   style={{ marginTop: '15px' }}
@@ -145,9 +140,9 @@ export default function OrganizerDashboard() {
               <>
                 <div className="cards">
                   {displayEvents.map((event) => (
-                    <div 
-                      key={event._id || event.id} 
-                      className="card" 
+                    <div
+                      key={event._id || event.id}
+                      className="card"
                       onClick={() => navigate(`/organizer-event/${event._id || event.id}`)}
                       style={{ cursor: 'pointer' }}
                     >
@@ -166,7 +161,7 @@ export default function OrganizerDashboard() {
                 </div>
 
                 <div className="carousel-controls">
-                  <button 
+                  <button
                     className="carousel-btn"
                     onClick={handlePrevCarousel}
                     disabled={carouselIndex === 0}
@@ -176,7 +171,7 @@ export default function OrganizerDashboard() {
                   <span style={{ color: 'var(--muted)' }}>
                     {carouselIndex + 1} - {Math.min(carouselIndex + 3, events.length)} of {events.length}
                   </span>
-                  <button 
+                  <button
                     className="carousel-btn"
                     onClick={handleNextCarousel}
                     disabled={carouselIndex + 3 >= events.length}
@@ -192,15 +187,15 @@ export default function OrganizerDashboard() {
           <div className="section-card">
             <h3>Quick Actions</h3>
             <div className="button-group">
-              <button 
+              <button
                 className="primary-btn"
                 onClick={() => navigate('/organizer-create-event')}
               >
                 + Create New Event
               </button>
-              <button 
+              <button
                 className="secondary-btn"
-                onClick={() => navigate('/organizer-events')}
+                onClick={() => navigate('/organizer-all-events')}
               >
                 View All Events
               </button>

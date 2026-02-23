@@ -5,6 +5,8 @@ const Organizer = require('../models/Organizer');
 const Event = require('../models/events');
 const PasswordChangeRequest = require('../models/PasswordChangeRequest');
 const Attendance = require('../models/Attendance');
+const MerchandiseOrder = require('../models/MerchandiseOrder');
+const QRCodeLib = require('qrcode');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { sendRegistrationEmail, sendOrganizerCredentialsEmail, sendPasswordResetEmail, sendEventRegistrationEmail, sendPasswordChangeEmail } = require('../config/email');
@@ -481,6 +483,23 @@ const getEvents = async (req, res) => {
     });
   } catch (error) {
     console.error('Get events error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+const getMyEvents = async (req, res) => {
+  try {
+    const organizerId = req.user.id || req.user._id;
+    const events = await Event.find({ organizer_id: organizerId })
+      .populate('organizer_id', 'firstName lastName email')
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      events: events.map(formatEvent)
+    });
+  } catch (error) {
+    console.error('Get my events error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
@@ -1341,6 +1360,306 @@ const exportAttendanceCSV = async (req, res) => {
   }
 };
 
+// ============ MERCHANDISE PAYMENT VERIFICATION ============
+
+// Helper: generate ticket ID
+const generateTicketId = () => {
+  const stamp = Date.now().toString(36).toUpperCase();
+  const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `TKT-${stamp}-${rand}`;
+};
+
+// User: create merchandise order with payment proof
+const createMerchandiseOrder = async (req, res) => {
+  try {
+    const { eventId, paymentProofImage, paymentProofMimeType } = req.body;
+
+    if (!eventId || !paymentProofImage) {
+      return res.status(400).json({ success: false, message: 'Event ID and payment proof are required' });
+    }
+
+    const event = await Event.findById(eventId);
+    if (!event) return res.status(404).json({ success: false, message: 'Event not found' });
+
+    if (event.type !== 'merchandise') {
+      return res.status(400).json({ success: false, message: 'This endpoint is only for merchandise events' });
+    }
+
+    // Prevent duplicate pending/approved orders from same user
+    const existing = await MerchandiseOrder.findOne({
+      eventId,
+      participantEmail: req.user.email,
+      status: { $in: ['pending', 'approved'] }
+    });
+    if (existing) {
+      return res.status(409).json({
+        success: false,
+        message: existing.status === 'approved'
+          ? 'You already have an approved order for this event'
+          : 'You already have a pending order awaiting approval',
+        status: existing.status,
+        orderId: existing._id
+      });
+    }
+
+    const order = await MerchandiseOrder.create({
+      eventId,
+      eventName: event.eventName,
+      organizerId: event.organizer_id,
+      userId: req.user.id || req.user._id,
+      participantName: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim(),
+      participantEmail: req.user.email,
+      paymentProofImage,
+      paymentProofMimeType: paymentProofMimeType || 'image/jpeg',
+      status: 'pending'
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Order submitted. Awaiting organizer approval.',
+      order: { id: order._id, status: order.status, eventName: order.eventName }
+    });
+  } catch (error) {
+    console.error('Create merchandise order error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// Organizer: get all orders for an event
+const getMerchandiseOrders = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const orders = await MerchandiseOrder.find({ eventId }).sort({ createdAt: -1 }).lean();
+    res.status(200).json({ success: true, orders });
+  } catch (error) {
+    console.error('Get merchandise orders error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// Organizer: approve an order → decrement stock, generate QR, send email
+const approveMerchandiseOrder = async (req, res) => {
+  try {
+    const { orderId } = req.body;
+    if (!orderId) return res.status(400).json({ success: false, message: 'Order ID is required' });
+
+    const order = await MerchandiseOrder.findById(orderId);
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+    if (order.status !== 'pending') {
+      return res.status(400).json({ success: false, message: `Order is already ${order.status}` });
+    }
+
+    // Decrement stock
+    const event = await Event.findById(order.eventId);
+    if (!event) return res.status(404).json({ success: false, message: 'Event not found' });
+    if ((event.stock ?? 0) <= 0) {
+      return res.status(400).json({ success: false, message: 'No stock remaining for this event' });
+    }
+    await Event.findByIdAndUpdate(order.eventId, { $inc: { stock: -1, reg_count: 1 } });
+
+    // Generate ticket + QR (with participant info embedded)
+    const ticketId = generateTicketId();
+    const qrPayload = JSON.stringify({
+      ticketId,
+      name: order.participantName,
+      email: order.participantEmail
+    });
+    const qrDataUrl = await QRCodeLib.toDataURL(qrPayload, { width: 300, margin: 2 });
+
+    // Update order
+    order.status = 'approved';
+    order.ticketId = ticketId;
+    order.qrDataUrl = qrDataUrl;
+    order.reviewedBy = req.user.id || req.user._id;
+    order.reviewedAt = new Date();
+    await order.save();
+
+    // Send confirmation email with QR
+    try {
+      await sendEventRegistrationEmail(
+        order.participantEmail,
+        order.participantName || 'Participant',
+        order.eventName,
+        new Date(event.event_start).toLocaleString(),
+        ticketId,
+        qrDataUrl
+      );
+    } catch (emailErr) {
+      console.error('Approval email failed (non-fatal):', emailErr.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Order approved. Ticket generated and email sent.',
+      order: { id: order._id, ticketId, status: 'approved' }
+    });
+  } catch (error) {
+    console.error('Approve merchandise order error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// Organizer: reject an order
+const rejectMerchandiseOrder = async (req, res) => {
+  try {
+    const { orderId, reason } = req.body;
+    if (!orderId) return res.status(400).json({ success: false, message: 'Order ID is required' });
+
+    const order = await MerchandiseOrder.findById(orderId);
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+    if (order.status !== 'pending') {
+      return res.status(400).json({ success: false, message: `Order is already ${order.status}` });
+    }
+
+    order.status = 'rejected';
+    order.rejectionReason = reason?.trim() || 'Payment could not be verified';
+    order.reviewedBy = req.user.id || req.user._id;
+    order.reviewedAt = new Date();
+    await order.save();
+
+    res.status(200).json({ success: true, message: 'Order rejected.', order: { id: order._id, status: 'rejected' } });
+  } catch (error) {
+    console.error('Reject merchandise order error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// User: get their own merchandise orders
+const getUserMerchandiseOrders = async (req, res) => {
+  try {
+    const email = req.user.email;
+    const orders = await MerchandiseOrder.find({ participantEmail: email })
+      .sort({ createdAt: -1 })
+      .lean()
+      .select('-paymentProofImage'); // don't send large base64 back to user list
+    res.status(200).json({ success: true, orders });
+  } catch (error) {
+    console.error('Get user merchandise orders error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+const updateEvent = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const organizerId = req.user.id || req.user._id;
+
+    const event = await Event.findById(id);
+    if (!event) {
+      return res.status(404).json({ success: false, message: 'Event not found' });
+    }
+
+    // Ensure the requesting organizer owns this event
+    if (event.organizer_id.toString() !== organizerId.toString()) {
+      return res.status(403).json({ success: false, message: 'You do not have permission to edit this event' });
+    }
+
+    const { status: currentStatus, reg_count } = event;
+
+    // Status-based edit rules
+    if (currentStatus === 'ongoing' || currentStatus === 'completed') {
+      // Only allow status transitions: ongoing→completed, ongoing→closed, completed→closed
+      const { status: newStatus } = req.body;
+      const allowedTransitions = {
+        ongoing: ['completed', 'closed'],
+        completed: ['closed']
+      };
+      if (!newStatus || !allowedTransitions[currentStatus]?.includes(newStatus)) {
+        return res.status(400).json({
+          success: false,
+          message: `Event is ${currentStatus}. Only status changes to [${(allowedTransitions[currentStatus] || []).join(', ')}] are allowed.`
+        });
+      }
+      event.status = newStatus;
+      await event.save();
+      return res.status(200).json({ success: true, message: 'Event status updated', event: formatEvent(event.toObject ? { ...event.toObject(), organizer_id: null } : event) });
+    }
+
+    if (currentStatus === 'published' || currentStatus === 'closed') {
+      const { description, reg_deadline, reg_limit, status: newStatus } = req.body;
+
+      if (newStatus !== undefined && newStatus !== 'published' && newStatus !== 'closed' && newStatus !== 'ongoing') {
+        return res.status(400).json({
+          success: false,
+          message: 'Published events can only be set to: published, ongoing, or closed'
+        });
+      }
+
+      if (description !== undefined) event.description = description;
+
+      if (reg_deadline !== undefined) {
+        const newDeadline = new Date(reg_deadline);
+        if (newDeadline <= new Date(event.reg_deadline)) {
+          return res.status(400).json({ success: false, message: 'New registration deadline must be later than the current deadline' });
+        }
+        event.reg_deadline = newDeadline;
+      }
+
+      if (reg_limit !== undefined) {
+        if (Number(reg_limit) <= event.reg_limit) {
+          return res.status(400).json({ success: false, message: 'New registration limit must be higher than the current limit' });
+        }
+        event.reg_limit = Number(reg_limit);
+      }
+
+      if (newStatus !== undefined) event.status = newStatus;
+
+      await event.save();
+      const populated = await Event.findById(event._id).populate('organizer_id', 'firstName lastName email').lean();
+      return res.status(200).json({ success: true, message: 'Event updated', event: formatEvent(populated) });
+    }
+
+    if (currentStatus === 'draft') {
+      const {
+        eventName, description, type, eligibility,
+        reg_deadline, event_start, event_end,
+        reg_limit, reg_fee, event_tags, customForm, status: newStatus
+      } = req.body;
+
+      if (eventName !== undefined) event.eventName = eventName;
+      if (description !== undefined) event.description = description;
+      if (type !== undefined) event.type = type;
+      if (eligibility !== undefined) event.eligibility = eligibility;
+      if (reg_deadline !== undefined) event.reg_deadline = new Date(reg_deadline);
+      if (event_start !== undefined) event.event_start = new Date(event_start);
+      if (event_end !== undefined) event.event_end = new Date(event_end);
+      if (reg_limit !== undefined) event.reg_limit = Number(reg_limit);
+      if (reg_fee !== undefined) event.reg_fee = Number(reg_fee);
+      if (event_tags !== undefined) {
+        let tags = event_tags;
+        if (typeof tags === 'string') tags = tags.split(',').map(t => t.trim()).filter(Boolean);
+        if (Array.isArray(tags) && tags.length > 0) event.event_tags = tags;
+      }
+
+      if (customForm !== undefined) {
+        if ((reg_count || 0) > 0) {
+          return res.status(400).json({ success: false, message: 'Registration form is locked after the first registration is received' });
+        }
+        if (Array.isArray(customForm) && customForm.length > 0) {
+          event.customForm = customForm;
+        }
+      }
+
+      if (newStatus !== undefined) {
+        const validStatuses = ['draft', 'published'];
+        if (!validStatuses.includes(newStatus)) {
+          return res.status(400).json({ success: false, message: 'Draft events can only be set to draft or published' });
+        }
+        event.status = newStatus;
+      }
+
+      await event.save();
+      const populated = await Event.findById(event._id).populate('organizer_id', 'firstName lastName email').lean();
+      return res.status(200).json({ success: true, message: 'Event updated', event: formatEvent(populated) });
+    }
+
+    return res.status(400).json({ success: false, message: 'Unknown event status' });
+  } catch (error) {
+    console.error('Update event error:', error);
+    res.status(500).json({ success: false, message: error.message || 'Server error' });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -1373,5 +1692,12 @@ module.exports = {
   scanAttendance,
   getAttendanceDashboard,
   manualOverride,
-  exportAttendanceCSV
+  exportAttendanceCSV,
+  createMerchandiseOrder,
+  getMerchandiseOrders,
+  approveMerchandiseOrder,
+  rejectMerchandiseOrder,
+  getUserMerchandiseOrders,
+  updateEvent,
+  getMyEvents
 };

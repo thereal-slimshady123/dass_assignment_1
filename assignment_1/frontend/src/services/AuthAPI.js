@@ -76,6 +76,15 @@ export const addEvent = (data) => {
   });
 };
 
+export const updateEvent = (id, data) => {
+  const token = localStorage.getItem('token');
+  return axios.patch(`${API}/events/${id}`, data, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+};
+
 export const deleteEvent = (data) => {
   const token = localStorage.getItem('token');
   return axios.delete(`${API}/delete-event`, {
@@ -91,6 +100,13 @@ export const getEvents = () =>
 
 export const getEventById = (id) =>
   axios.get(`${API}/events/${id}`);
+
+export const getMyEvents = () => {
+  const token = localStorage.getItem('token');
+  return axios.get(`${API}/my-events`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+};
 
 export const getClubs = () =>
   axios.get(`${API}/clubs`);
@@ -211,5 +227,41 @@ export const exportAttendanceCSV = (eventId) => {
       Authorization: `Bearer ${token}`
     },
     responseType: 'blob'
+  });
+};
+
+// Merchandise payment verification APIs
+export const createMerchandiseOrder = (data) => {
+  const token = localStorage.getItem('token');
+  return axios.post(`${API}/create-merchandise-order`, data, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+};
+
+export const getMerchandiseOrders = (eventId) => {
+  const token = localStorage.getItem('token');
+  return axios.get(`${API}/merchandise-orders/${eventId}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+};
+
+export const approveMerchandiseOrder = (orderId) => {
+  const token = localStorage.getItem('token');
+  return axios.post(`${API}/approve-merchandise-order`, { orderId }, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+};
+
+export const rejectMerchandiseOrder = (orderId, reason) => {
+  const token = localStorage.getItem('token');
+  return axios.post(`${API}/reject-merchandise-order`, { orderId, reason }, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+};
+
+export const getUserMerchandiseOrders = () => {
+  const token = localStorage.getItem('token');
+  return axios.get(`${API}/my-merchandise-orders`, {
+    headers: { Authorization: `Bearer ${token}` }
   });
 };

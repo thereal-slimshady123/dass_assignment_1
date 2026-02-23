@@ -15,10 +15,10 @@ import Interests from './interests.jsx'
 import ForgotPassword from './components/ForgotPassword.jsx'
 import ResetPassword from './components/ResetPassword.jsx'
 
-// Lazy load organizer components
 const OrganizerDashboard = lazy(() => import('./pages/OrganizerDashboard.jsx'));
 const OrganizerCreateEvent = lazy(() => import('./pages/OrganizerCreateEvent.jsx'));
 const OrganizerEventDetail = lazy(() => import('./pages/OrganizerEventDetail.jsx'));
+const OrganizerAllEvents = lazy(() => import('./pages/OrganizerAllEvents.jsx'));
 const OrganizerProfile = lazy(() => import('./pages/OrganizerProfile.jsx'));
 const QRAttendanceScanner = lazy(() => import('./pages/QRAttendanceScanner.jsx'));
 
@@ -41,6 +41,8 @@ createRoot(document.getElementById('root')).render(
           <Route path="/interests" element={<Interests />} />
           <Route path="/organizer-dashboard" element={<OrganizerDashboard />} />
           <Route path="/organizer-create-event" element={<OrganizerCreateEvent />} />
+          <Route path="/organizer-edit-event/:eventId" element={<OrganizerCreateEvent />} />
+          <Route path="/organizer-all-events" element={<OrganizerAllEvents />} />
           <Route path="/organizer-event/:eventId" element={<OrganizerEventDetail />} />
           <Route path="/organizer-event/:eventId/attendance" element={<QRAttendanceScanner />} />
           <Route path="/organizer-profile" element={<OrganizerProfile />} />
