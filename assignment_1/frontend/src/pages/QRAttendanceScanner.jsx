@@ -20,6 +20,8 @@ export default function QRAttendanceScanner() {
     const [scanHistory, setScanHistory] = useState([]);
     const scannerRef = useRef(null);
     const html5QrCodeRef = useRef(null);
+    const scanLockRef = useRef(false);
+    const resumeTimerRef = useRef(null);
 
     // File upload state
     const fileInputRef = useRef(null);
@@ -69,17 +71,44 @@ export default function QRAttendanceScanner() {
 
     // Parse QR code text — new QRs contain JSON {ticketId, name, email}, old QRs are plain ticket IDs
     const parseQRPayload = (rawText) => {
+        const cleanedRaw = String(rawText || '').trim();
+        if (!cleanedRaw) return { ticketId: '', name: '', email: '' };
+
         try {
-            const parsed = JSON.parse(rawText);
+            const parsed = JSON.parse(cleanedRaw);
+            if (typeof parsed === 'string') {
+                return { ticketId: parsed.trim(), name: '', email: '' };
+            }
             if (parsed.ticketId) return parsed;
         } catch { }
+
+        const ticketIdMatch = cleanedRaw.match(/ticketId\s*[:=]\s*["']?([A-Za-z0-9-]+)/i);
+        if (ticketIdMatch?.[1]) {
+            return { ticketId: ticketIdMatch[1], name: '', email: '' };
+        }
+
         // Fallback: treat raw text as plain ticket ID
-        return { ticketId: rawText, name: '', email: '' };
+        return { ticketId: cleanedRaw.replace(/^"|"$/g, ''), name: '', email: '' };
     };
 
     // Process a scanned QR result
     const processTicketScan = useCallback(async (rawText, method = 'QR Scan') => {
         const { ticketId, name: participantName, email: participantEmail } = parseQRPayload(rawText);
+
+        if (!ticketId || !ticketId.trim()) {
+            const result = {
+                type: 'error',
+                ticketId: '',
+                message: 'Invalid QR payload. Could not extract ticket ID.',
+                participantName: '',
+                participantEmail: '',
+                timestamp: new Date().toLocaleTimeString(),
+                method
+            };
+            setScanResult(result);
+            setScanHistory(prev => [result, ...prev]);
+            return;
+        }
 
         try {
             const response = await scanAttendance({
@@ -119,31 +148,66 @@ export default function QRAttendanceScanner() {
 
     // Start camera scanner
     const startScanner = async () => {
+        if (scannerActive || html5QrCodeRef.current) return;
+
+        setScanResult(null);
+        setScannerActive(true);
+
         try {
             const { Html5Qrcode } = await import('html5-qrcode');
+
+            await new Promise((resolve) => setTimeout(resolve, 30));
+
             const html5QrCode = new Html5Qrcode('qr-reader');
             html5QrCodeRef.current = html5QrCode;
 
+            const cameras = await Html5Qrcode.getCameras();
+            if (!cameras || cameras.length === 0) {
+                throw new Error('No camera devices found');
+            }
+
+            const preferredCamera =
+                cameras.find((camera) => /back|rear|environment/i.test(camera.label)) || cameras[0];
+
             await html5QrCode.start(
-                { facingMode: 'environment' },
+                { deviceId: { exact: preferredCamera.id } },
                 { fps: 10, qrbox: { width: 250, height: 250 } },
                 async (decodedText) => {
-                    // Pause scanning briefly to avoid rapid duplicate scans
-                    await html5QrCode.pause();
-                    await processTicketScan(decodedText, 'Camera');
-                    setTimeout(() => {
-                        try { html5QrCode.resume(); } catch { }
-                    }, 2000);
+                    if (scanLockRef.current) return;
+                    scanLockRef.current = true;
+
+                    try {
+                        await html5QrCode.pause(true);
+                        await processTicketScan(decodedText, 'Camera');
+                    } finally {
+                        if (resumeTimerRef.current) {
+                            clearTimeout(resumeTimerRef.current);
+                        }
+                        resumeTimerRef.current = setTimeout(async () => {
+                            try {
+                                if (html5QrCodeRef.current) {
+                                    await html5QrCodeRef.current.resume();
+                                }
+                            } catch { }
+                            scanLockRef.current = false;
+                        }, 1200);
+                    }
                 },
                 () => { } // ignore scan errors
             );
-            setScannerActive(true);
         } catch (error) {
             console.error('Failed to start scanner:', error);
+            setScannerActive(false);
+            if (html5QrCodeRef.current) {
+                try {
+                    await html5QrCodeRef.current.clear();
+                } catch { }
+                html5QrCodeRef.current = null;
+            }
             setScanResult({
                 type: 'error',
                 ticketId: '',
-                message: 'Failed to access camera. Please check permissions or try file upload.',
+                message: `Failed to access camera. ${error?.message || 'Please check permissions or try file upload.'}`,
                 timestamp: new Date().toLocaleTimeString(),
                 method: 'Camera'
             });
@@ -152,10 +216,18 @@ export default function QRAttendanceScanner() {
 
     // Stop camera scanner
     const stopScanner = async () => {
+        if (resumeTimerRef.current) {
+            clearTimeout(resumeTimerRef.current);
+            resumeTimerRef.current = null;
+        }
+        scanLockRef.current = false;
+
         try {
             if (html5QrCodeRef.current) {
-                await html5QrCodeRef.current.stop();
-                html5QrCodeRef.current.clear();
+                try {
+                    await html5QrCodeRef.current.stop();
+                } catch { }
+                await html5QrCodeRef.current.clear();
                 html5QrCodeRef.current = null;
             }
         } catch { }
@@ -360,6 +432,8 @@ export default function QRAttendanceScanner() {
                                             maxWidth: '400px',
                                             margin: '0 auto',
                                             display: scannerActive ? 'block' : 'none',
+                                            minHeight: scannerActive ? '280px' : 0,
+                                            background: '#000',
                                             borderRadius: '12px',
                                             overflow: 'hidden'
                                         }}
