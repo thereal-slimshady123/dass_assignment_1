@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import UserNav from "../components/UserNav";
 import "../components/user.css";
 import { loadRegistrations } from "../utils/eventStore";
-import { loadUser } from "../utils/profileStore";
+import { loadUser, loadPreferences } from "../utils/profileStore";
 import { getEvents, getUserMerchandiseOrders } from "../services/AuthAPI";
 import {
   normalizeEventForCalendar,
@@ -18,6 +18,9 @@ const reminderOptions = [0, 10, 30, 60, 1440];
 
 export default function UserDashboard() {
   const user = useMemo(() => loadUser(), []);
+  const preferences = useMemo(() => loadPreferences(), []);
+  const followedClubs = preferences.clubs || [];
+  const followedOrganizers = preferences.organizers || [];
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("Normal");
@@ -31,6 +34,11 @@ export default function UserDashboard() {
 
   const getEventByRecord = (record) =>
     events.find((item) => item.id === record.eventId || item._id === record.eventId);
+
+  const isFollowedSource = (event) => {
+    if (!event) return false;
+    return followedOrganizers.includes(event.organizer?.id) || followedClubs.includes(event.organizer?.name);
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -80,12 +88,23 @@ export default function UserDashboard() {
 
   const upcomingEvents = useMemo(() => {
     const now = new Date();
-    return registrations.filter((record) => {
+    const list = registrations.filter((record) => {
       const event = getEventByRecord(record);
       if (!event) return false;
       return new Date(event.event_start) > now && record.status === "Registered";
     });
-  }, [registrations, events]);
+
+    return list.sort((a, b) => {
+      const aEvent = getEventByRecord(a);
+      const bEvent = getEventByRecord(b);
+      const aFollowed = isFollowedSource(aEvent);
+      const bFollowed = isFollowedSource(bEvent);
+      if (aFollowed === bFollowed) {
+        return new Date(a.schedule.start) - new Date(b.schedule.start);
+      }
+      return aFollowed ? -1 : 1;
+    });
+  }, [registrations, events, followedClubs, followedOrganizers]);
 
   const exportableEvents = useMemo(() => {
     return registrations
@@ -151,12 +170,23 @@ export default function UserDashboard() {
   };
 
   const history = useMemo(() => {
-    return registrations.filter((record) => {
+    const list = registrations.filter((record) => {
       if (activeTab === "Normal") return record.eventType === "normal";
       if (activeTab === "Completed") return record.status === "Completed";
       return record.status === "Cancelled" || record.status === "Rejected";
     });
-  }, [registrations, activeTab]);
+
+    return list.sort((a, b) => {
+      const aEvent = getEventByRecord(a);
+      const bEvent = getEventByRecord(b);
+      const aFollowed = isFollowedSource(aEvent);
+      const bFollowed = isFollowedSource(bEvent);
+      if (aFollowed === bFollowed) {
+        return new Date(b.schedule.start) - new Date(a.schedule.start);
+      }
+      return aFollowed ? -1 : 1;
+    });
+  }, [registrations, activeTab, events, followedClubs, followedOrganizers]);
 
   return (
     <div className="user-root">

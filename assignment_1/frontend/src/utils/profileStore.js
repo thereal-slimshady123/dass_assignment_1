@@ -16,10 +16,24 @@ export const saveUser = (user) => {
   localStorage.setItem(USER_KEY, JSON.stringify(user));
 };
 
-export const loadPreferences = () => safeParse(localStorage.getItem(PREF_KEY), { areas: [], clubs: [] });
+const normalizePreferences = (value) => {
+  const parsed = value && typeof value === "object" ? value : {};
+  const clubs = Array.isArray(parsed.clubs) ? parsed.clubs : [];
+  const organizers = Array.isArray(parsed.organizers) ? parsed.organizers : [];
+  const areas = Array.isArray(parsed.areas) ? parsed.areas : [];
+
+  return {
+    ...parsed,
+    areas,
+    clubs,
+    organizers
+  };
+};
+
+export const loadPreferences = () => normalizePreferences(safeParse(localStorage.getItem(PREF_KEY), { areas: [], clubs: [], organizers: [] }));
 
 export const savePreferences = (prefs) => {
-  localStorage.setItem(PREF_KEY, JSON.stringify(prefs));
+  localStorage.setItem(PREF_KEY, JSON.stringify(normalizePreferences(prefs)));
 };
 
 export const toggleFollowedClub = (clubName) => {
@@ -29,6 +43,17 @@ export const toggleFollowedClub = (clubName) => {
     ? clubs.filter((club) => club !== clubName)
     : [...clubs, clubName];
   const next = { ...prefs, clubs: nextClubs };
+  savePreferences(next);
+  return next;
+};
+
+export const toggleFollowedOrganizer = (organizerId) => {
+  const prefs = loadPreferences();
+  const organizers = prefs.organizers || [];
+  const nextOrganizers = organizers.includes(organizerId)
+    ? organizers.filter((organizer) => organizer !== organizerId)
+    : [...organizers, organizerId];
+  const next = { ...prefs, organizers: nextOrganizers };
   savePreferences(next);
   return next;
 };

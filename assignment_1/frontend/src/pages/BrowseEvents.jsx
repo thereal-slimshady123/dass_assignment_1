@@ -5,24 +5,88 @@ import "../components/user.css";
 import { loadPreferences } from "../utils/profileStore";
 import { getEvents } from "../services/AuthAPI";
 
-const normalize = (value) => value.toLowerCase().trim();
+const normalize = (value = "") =>
+  String(value)
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
-const fuzzyMatch = (query, text) => {
-  const q = normalize(query).replace(/\s+/g, "");
-  const t = normalize(text);
-  if (!q) return true;
-  if (t.includes(q)) return true;
+const compact = (value = "") => normalize(value).replace(/\s+/g, "");
+
+const toLabel = (value) => {
+  if (!value) return "Unknown";
+  return String(value)
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+};
+
+const subsequenceRatio = (query, text) => {
+  if (!query || !text) return 0;
   let qi = 0;
-  for (let i = 0; i < t.length && qi < q.length; i += 1) {
-    if (t[i] === q[qi]) qi += 1;
+  for (let i = 0; i < text.length && qi < query.length; i += 1) {
+    if (text[i] === query[qi]) qi += 1;
   }
-  return qi === q.length;
+  return qi / query.length;
+};
+
+const fuzzyScoreForText = (query, text) => {
+  const q = compact(query);
+  const t = compact(text);
+  if (!q) return 0;
+  if (!t) return -1;
+
+  if (t.includes(q)) {
+    return 120 - t.indexOf(q);
+  }
+
+  const ratio = subsequenceRatio(q, t);
+  if (ratio < 0.7) {
+    return -1;
+  }
+
+  return Math.round(ratio * 80);
+};
+
+const getEventSearchScore = (query, event) => {
+  const tokens = normalize(query).split(" ").filter(Boolean);
+  if (!tokens.length) return 0;
+
+  const fields = [
+    event.eventName,
+    event.organizer?.name,
+    event.description,
+    ...(event.event_tags || [])
+  ];
+
+  let totalScore = 0;
+  for (const token of tokens) {
+    const bestForToken = Math.max(...fields.map((field) => fuzzyScoreForText(token, field)), -1);
+    if (bestForToken < 0) {
+      return -1;
+    }
+    totalScore += bestForToken;
+  }
+
+  return totalScore;
+};
+
+const getEventStatus = (event) => {
+  const now = new Date();
+  const start = new Date(event.event_start);
+  const end = new Date(event.event_end);
+  if (end < now) return "past";
+  if (start > now) return "upcoming";
+  return "ongoing";
 };
 
 export default function BrowseEvents() {
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [eligibilityFilter, setEligibilityFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [dateStart, setDateStart] = useState("");
   const [dateEnd, setDateEnd] = useState("");
   const [followedOnly, setFollowedOnly] = useState(false);
@@ -32,6 +96,7 @@ export default function BrowseEvents() {
 
   const preferences = useMemo(() => loadPreferences(), []);
   const followedClubs = preferences.clubs || [];
+  const followedOrganizers = preferences.organizers || [];
 
   useEffect(() => {
     let isMounted = true;
@@ -63,26 +128,61 @@ export default function BrowseEvents() {
       .slice(0, 5);
   }, [events]);
 
+  const typeOptions = useMemo(() => {
+    const values = Array.from(new Set(events.map((event) => event.type).filter(Boolean)));
+    return ["all", ...values];
+  }, [events]);
+
+  const eligibilityOptions = useMemo(() => {
+    const values = Array.from(new Set(events.map((event) => event.eligibility).filter(Boolean)));
+    return ["all", ...values];
+  }, [events]);
+
   const filtered = useMemo(() => {
-    return events.filter((event) => {
-      const matchQuery =
-        fuzzyMatch(query, event.eventName) ||
-        fuzzyMatch(query, event.organizer?.name || "");
+    const scored = events.map((event) => {
+      const searchScore = query.trim() ? getEventSearchScore(query, event) : 0;
+      return { event, searchScore };
+    });
+
+    const matches = scored.filter(({ event, searchScore }) => {
+      const matchQuery = !query.trim() || searchScore >= 0;
 
       const matchType = typeFilter === "all" || event.type === typeFilter;
 
       const matchEligibility =
         eligibilityFilter === "all" || event.eligibility === eligibilityFilter;
 
+      const matchStatus = statusFilter === "all" || getEventStatus(event) === statusFilter;
+
       const matchFollowed =
-        !followedOnly || followedClubs.includes(event.organizer?.name);
+        !followedOnly ||
+        followedClubs.includes(event.organizer?.name) ||
+        followedOrganizers.includes(event.organizer?.id);
 
-      const startOk = !dateStart || new Date(event.event_start) >= new Date(dateStart);
-      const endOk = !dateEnd || new Date(event.event_end) <= new Date(dateEnd);
+      const startBoundary = dateStart ? new Date(`${dateStart}T00:00:00`) : null;
+      const endBoundary = dateEnd ? new Date(`${dateEnd}T23:59:59`) : null;
+      const startOk = !startBoundary || new Date(event.event_start) >= startBoundary;
+      const endOk = !endBoundary || new Date(event.event_end) <= endBoundary;
 
-      return matchQuery && matchType && matchEligibility && matchFollowed && startOk && endOk;
+      return matchQuery && matchType && matchEligibility && matchStatus && matchFollowed && startOk && endOk;
     });
-  }, [events, query, typeFilter, eligibilityFilter, dateStart, dateEnd, followedOnly, followedClubs]);
+
+    return matches.sort((a, b) => {
+      const aEvent = a.event;
+      const bEvent = b.event;
+      const aFollowed = followedOrganizers.includes(aEvent.organizer?.id) || followedClubs.includes(aEvent.organizer?.name);
+      const bFollowed = followedOrganizers.includes(bEvent.organizer?.id) || followedClubs.includes(bEvent.organizer?.name);
+      if (aFollowed !== bFollowed) {
+        return aFollowed ? -1 : 1;
+      }
+
+      if (query.trim() && a.searchScore !== b.searchScore) {
+        return b.searchScore - a.searchScore;
+      }
+
+      return new Date(aEvent.event_start) - new Date(bEvent.event_start);
+    }).map((item) => item.event);
+  }, [events, query, typeFilter, eligibilityFilter, statusFilter, dateStart, dateEnd, followedOnly, followedClubs, followedOrganizers]);
 
   return (
     <div className="user-root">
@@ -97,16 +197,18 @@ export default function BrowseEvents() {
           <div className="filters">
             <input
               type="search"
-              placeholder="Search events or organizers"
+              placeholder="Fuzzy search events, organizers, tags"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="input"
             />
 
             <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="input">
-              <option value="all">All Types</option>
-              <option value="normal">Normal</option>
-              <option value="merchandise">Merchandise</option>
+              {typeOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option === "all" ? "All Types" : toLabel(option)}
+                </option>
+              ))}
             </select>
 
             <select
@@ -114,9 +216,18 @@ export default function BrowseEvents() {
               onChange={(e) => setEligibilityFilter(e.target.value)}
               className="input"
             >
-              <option value="all">All Eligibility</option>
-              <option value="open">Open</option>
-              <option value="member-only">Member-only</option>
+              {eligibilityOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option === "all" ? "All Eligibility" : toLabel(option)}
+                </option>
+              ))}
+            </select>
+
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="input">
+              <option value="all">All Status</option>
+              <option value="upcoming">Upcoming</option>
+              <option value="ongoing">Ongoing</option>
+              <option value="past">Past</option>
             </select>
 
             <div className="filter-row">
@@ -143,7 +254,7 @@ export default function BrowseEvents() {
               className={followedOnly ? "small-btn active" : "small-btn"}
               onClick={() => setFollowedOnly(!followedOnly)}
             >
-              {followedOnly ? "Followed Clubs" : "All Events"}
+              {followedOnly ? "Followed Sources" : "All Events"}
             </button>
           </div>
 
@@ -182,11 +293,15 @@ export default function BrowseEvents() {
                     <div className="card-meta">
                       <span className="pill">{event.type}</span>
                       <span className="pill">{event.eligibility}</span>
+                      <span className="pill">{getEventStatus(event)}</span>
                       <span className="pill">{event.organizer?.name}</span>
                     </div>
                   </article>
                 </Link>
               ))}
+              {!loading && !errorMsg && filtered.length === 0 && (
+                <p className="muted">No events match the selected filters.</p>
+              )}
             </div>
           </div>
         </section>
