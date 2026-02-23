@@ -1,6 +1,11 @@
 import axios from "axios";
 
 const API = "http://localhost:5000/api/auth";
+const authHeaders = () => ({
+  headers: {
+    Authorization: `Bearer ${localStorage.getItem('token')}`
+  }
+});
 
 export const login = (data) =>
   axios.post(`${API}/login`, data);
@@ -18,42 +23,22 @@ export const changePassword = (data) =>
   axios.post(`${API}/change-password`, data);
 
 export const requestOrganizerPasswordReset = (data) => {
-  const token = localStorage.getItem('token');
-  return axios.post(`${API}/organizer-password-reset-request`, data, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  });
+  return axios.post(`${API}/organizer-password-reset-request`, data, authHeaders());
 };
 
 export const getOrganizerPasswordResetHistory = () => {
-  const token = localStorage.getItem('token');
-  return axios.get(`${API}/organizer-password-reset-history`, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  });
+  return axios.get(`${API}/organizer-password-reset-history`, authHeaders());
 };
 
 export const sendEventRegistrationEmail = (data) =>
   axios.post(`${API}/send-event-email`, data);
 
 export const updateOrganizerProfile = (data) => {
-  const token = localStorage.getItem('token');
-  return axios.post(`${API}/update-organizer-profile`, data, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  });
+  return axios.post(`${API}/update-organizer-profile`, data, authHeaders());
 };
 
 export const createOrganizer = (data) => {
-  const token = localStorage.getItem('token');
-  return axios.post(`${API}/create-organizer`, data, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  });
+  return axios.post(`${API}/create-organizer`, data, authHeaders());
 };
 
 export const deleteOrganizer = (data) => {
@@ -67,12 +52,7 @@ export const deleteOrganizer = (data) => {
 };
 
 export const addClub = (data) => {
-  const token = localStorage.getItem('token');
-  return axios.post(`${API}/add-club`, data, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  });
+  return axios.post(`${API}/add-club`, data, authHeaders());
 };
 
 export const deleteClub = (data) => {
@@ -86,21 +66,11 @@ export const deleteClub = (data) => {
 };
 
 export const addEvent = (data) => {
-  const token = localStorage.getItem('token');
-  return axios.post(`${API}/add-event`, data, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  });
+  return axios.post(`${API}/add-event`, data, authHeaders());
 };
 
 export const updateEvent = (id, data) => {
-  const token = localStorage.getItem('token');
-  return axios.patch(`${API}/events/${id}`, data, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  });
+  return axios.patch(`${API}/events/${id}`, data, authHeaders());
 };
 
 export const deleteEvent = (data) => {
@@ -120,167 +90,103 @@ export const getEventById = (id) =>
   axios.get(`${API}/events/${id}`);
 
 export const getMyEvents = () => {
-  const token = localStorage.getItem('token');
-  return axios.get(`${API}/my-events`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
+  return axios.get(`${API}/my-events`, authHeaders());
 };
 
 export const getClubs = () =>
   axios.get(`${API}/clubs`);
 
 export const getAllOrganizers = () => {
-  const token = localStorage.getItem('token');
-  return axios.get(`${API}/organizers`, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  });
+  return axios.get(`${API}/organizers`, authHeaders());
 };
 
 export const getAllClubs = () => {
-  const token = localStorage.getItem('token');
-  return axios.get(`${API}/all-clubs`, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  });
+  return axios.get(`${API}/all-clubs`, authHeaders());
 };
 
 export const updateOrganizerStatus = (data) => {
-  const token = localStorage.getItem('token');
-  return axios.patch(`${API}/update-organizer-status`, data, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  });
+  return axios.patch(`${API}/update-organizer-status`, data, authHeaders());
 };
 
 export const updateClubStatus = (data) => {
-  const token = localStorage.getItem('token');
-  return axios.patch(`${API}/update-club-status`, data, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  });
+  return axios.patch(`${API}/update-club-status`, data, authHeaders());
 };
 
 export const getPasswordResetRequests = () => {
-  const token = localStorage.getItem('token');
-  return axios.get(`${API}/password-reset-requests`, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  });
+  return axios.get(`${API}/password-reset-requests`, authHeaders());
 };
 
 export const clearPasswordResetRequest = (data) => {
-  const token = localStorage.getItem('token');
-  return axios.post(`${API}/clear-password-reset-request`, data, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  });
+  return axios.post(`${API}/clear-password-reset-request`, data, authHeaders());
 };
 
 export const getPasswordChangeRequests = (status) => {
-  const token = localStorage.getItem('token');
   return axios.get(`${API}/password-change-requests`, {
     params: status ? { status } : undefined,
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
+    ...authHeaders()
   });
 };
 
 export const approvePasswordChangeRequest = (data) => {
-  const token = localStorage.getItem('token');
-  return axios.post(`${API}/approve-password-change-request`, data, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  });
+  return axios.post(`${API}/approve-password-change-request`, data, authHeaders());
 };
 
 export const rejectPasswordChangeRequest = (data) => {
-  const token = localStorage.getItem('token');
-  return axios.post(`${API}/reject-password-change-request`, data, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  });
+  return axios.post(`${API}/reject-password-change-request`, data, authHeaders());
 };
 
 // Attendance tracking APIs
 export const scanAttendance = (data) => {
-  const token = localStorage.getItem('token');
-  return axios.post(`${API}/scan-attendance`, data, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  });
+  return axios.post(`${API}/scan-attendance`, data, authHeaders());
 };
 
 export const getAttendanceDashboard = (eventId) => {
-  const token = localStorage.getItem('token');
-  return axios.get(`${API}/attendance-dashboard/${eventId}`, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  });
+  return axios.get(`${API}/attendance-dashboard/${eventId}`, authHeaders());
 };
 
 export const manualOverrideAttendance = (data) => {
-  const token = localStorage.getItem('token');
-  return axios.post(`${API}/manual-override`, data, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  });
+  return axios.post(`${API}/manual-override`, data, authHeaders());
 };
 
 export const exportAttendanceCSV = (eventId) => {
-  const token = localStorage.getItem('token');
   return axios.get(`${API}/export-attendance/${eventId}`, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    },
+    ...authHeaders(),
     responseType: 'blob'
   });
 };
 
 // Merchandise payment verification APIs
 export const createMerchandiseOrder = (data) => {
-  const token = localStorage.getItem('token');
-  return axios.post(`${API}/create-merchandise-order`, data, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
+  return axios.post(`${API}/create-merchandise-order`, data, authHeaders());
 };
 
 export const getMerchandiseOrders = (eventId) => {
-  const token = localStorage.getItem('token');
-  return axios.get(`${API}/merchandise-orders/${eventId}`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
+  return axios.get(`${API}/merchandise-orders/${eventId}`, authHeaders());
 };
 
 export const approveMerchandiseOrder = (orderId) => {
-  const token = localStorage.getItem('token');
-  return axios.post(`${API}/approve-merchandise-order`, { orderId }, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
+  return axios.post(`${API}/approve-merchandise-order`, { orderId }, authHeaders());
 };
 
 export const rejectMerchandiseOrder = (orderId, reason) => {
-  const token = localStorage.getItem('token');
-  return axios.post(`${API}/reject-merchandise-order`, { orderId, reason }, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
+  return axios.post(`${API}/reject-merchandise-order`, { orderId, reason }, authHeaders());
 };
 
 export const getUserMerchandiseOrders = () => {
-  const token = localStorage.getItem('token');
-  return axios.get(`${API}/my-merchandise-orders`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
+  return axios.get(`${API}/my-merchandise-orders`, authHeaders());
 };
+
+export const getEventForumMessages = (eventId) =>
+  axios.get(`${API}/events/${eventId}/forum`, authHeaders());
+
+export const createForumPost = (eventId, data) =>
+  axios.post(`${API}/events/${eventId}/forum`, data, authHeaders());
+
+export const deleteForumPost = (eventId, messageId) =>
+  axios.delete(`${API}/events/${eventId}/forum/${messageId}`, authHeaders());
+
+export const togglePinForumPost = (eventId, messageId) =>
+  axios.patch(`${API}/events/${eventId}/forum/${messageId}/pin`, {}, authHeaders());
+
+export const toggleForumReaction = (eventId, messageId, emoji) =>
+  axios.patch(`${API}/events/${eventId}/forum/${messageId}/react`, { emoji }, authHeaders());

@@ -2,8 +2,19 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import OrganizerNav from '../components/OrganizerNav';
 import '../components/user.css';
-import { getEventById, getMerchandiseOrders, approveMerchandiseOrder, rejectMerchandiseOrder } from '../services/AuthAPI';
+import {
+  getEventById,
+  getMerchandiseOrders,
+  approveMerchandiseOrder,
+  rejectMerchandiseOrder,
+  getEventForumMessages,
+  createForumPost,
+  deleteForumPost,
+  togglePinForumPost,
+  toggleForumReaction
+} from '../services/AuthAPI';
 import { loadUser, loadRegistrations } from '../utils/profileStore';
+import { createForumSocket, getForumUnreadCount, markForumSeen } from '../utils/forumRealtime';
 
 export default function OrganizerEventDetail() {
   const navigate = useNavigate();
@@ -26,6 +37,18 @@ export default function OrganizerEventDetail() {
   const [rejectReason, setRejectReason] = useState('');
   const [actionMsg, setActionMsg] = useState('');
   const [expandedProof, setExpandedProof] = useState(null);
+  const [forumMessages, setForumMessages] = useState([]);
+  const [forumInput, setForumInput] = useState('');
+  const [replyInputs, setReplyInputs] = useState({});
+  const [forumMode, setForumMode] = useState('discussion');
+  const [postAsAnnouncement, setPostAsAnnouncement] = useState(false);
+  const [forumNotice, setForumNotice] = useState('');
+  const [forumUnread, setForumUnread] = useState(0);
+
+  const userId = user?.id || '';
+  const userEmail = user?.email || '';
+  const userKey = userEmail || userId;
+  const reactionOptions = ['👍', '❤️', '🎉', '❓', '💀'];
 
   useEffect(() => {
     if (!user || user.role !== 'organizer') { navigate('/'); return; }
@@ -61,6 +84,40 @@ export default function OrganizerEventDetail() {
       fetchOrders();
     }
   }, [activeTab, event, fetchOrders]);
+
+  const refreshForum = useCallback(() => {
+    if (!eventId) return Promise.resolve();
+    return getEventForumMessages(eventId)
+      .then((response) => {
+        const nextMessages = Array.isArray(response.data?.messages) ? response.data.messages : [];
+        setForumMessages(nextMessages);
+        if (userKey) {
+          setForumUnread(getForumUnreadCount({ eventId, userKey, ownUserId: userId, messages: nextMessages }));
+        }
+      })
+      .catch(() => {
+        setForumNotice('Failed to load forum messages.');
+      });
+  }, [eventId, userKey, userId]);
+
+  useEffect(() => {
+    refreshForum();
+  }, [refreshForum]);
+
+  useEffect(() => {
+    if (!eventId) return undefined;
+    const socket = createForumSocket();
+    socket.emit('forum:join', { eventId });
+    socket.on('forum:update', (payload) => {
+      if (String(payload?.eventId) !== String(eventId)) return;
+      refreshForum();
+    });
+
+    return () => {
+      socket.emit('forum:leave', { eventId });
+      socket.disconnect();
+    };
+  }, [refreshForum]);
 
   const handleApprove = async (orderId) => {
     try {
@@ -165,6 +222,156 @@ export default function OrganizerEventDetail() {
 
   const statusColor = { pending: '#d97706', approved: '#059669', rejected: '#dc2626' };
   const statusLabel = { pending: '⏳ Pending', approved: '✅ Approved', rejected: '❌ Rejected' };
+
+  const isOrganizerOwner = user?.role === 'organizer' && String(userId) === String(event?.organizer?.id || '');
+  const canModerateForum = user?.role === 'admin' || isOrganizerOwner;
+  const canPostForum = Boolean(user);
+
+  const markForumAsRead = () => {
+    if (!userKey) return;
+    markForumSeen({ eventId, userKey });
+    setForumUnread(0);
+  };
+
+  const visibleRootMessages = forumMessages
+    .filter((message) => !message.parentId)
+    .filter((message) => forumMode === 'discussion' ? !message.isAnnouncement : message.isAnnouncement)
+    .sort((a, b) => {
+      if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
+
+  const getReplies = (parentId) => forumMessages
+    .filter((message) => message.parentId === parentId)
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+
+  const handlePostForumMessage = async ({ parentId = null } = {}) => {
+    const sourceText = parentId ? replyInputs[parentId] : forumInput;
+    const text = String(sourceText || '').trim();
+    if (!text) return;
+
+    if (!canPostForum) {
+      setForumNotice('Please sign in to post.');
+      return;
+    }
+
+    try {
+      await createForumPost(eventId, {
+        parentId,
+        text,
+        isAnnouncement: parentId ? false : (canModerateForum && postAsAnnouncement)
+      });
+    } catch (error) {
+      setForumNotice(error?.response?.data?.message || 'Unable to post forum message.');
+      return;
+    }
+
+    if (parentId) {
+      setReplyInputs((prev) => ({ ...prev, [parentId]: '' }));
+    } else {
+      setForumInput('');
+    }
+
+    setForumNotice('');
+    markForumAsRead();
+    await refreshForum();
+  };
+
+  const handleDeleteForumMessage = async (message) => {
+    if (!canModerateForum || !window.confirm('Delete this message?')) return;
+    try {
+      await deleteForumPost(eventId, message.id);
+      await refreshForum();
+    } catch (error) {
+      setForumNotice(error?.response?.data?.message || 'Unable to delete message.');
+    }
+  };
+
+  const handleTogglePinForumMessage = async (message) => {
+    if (!canModerateForum) return;
+    try {
+      await togglePinForumPost(eventId, message.id);
+      await refreshForum();
+    } catch (error) {
+      setForumNotice(error?.response?.data?.message || 'Unable to update pin status.');
+    }
+  };
+
+  const handleToggleReaction = async (message, emoji) => {
+    try {
+      await toggleForumReaction(eventId, message.id, emoji);
+      await refreshForum();
+    } catch (error) {
+      setForumNotice(error?.response?.data?.message || 'Unable to update reaction.');
+    }
+  };
+
+  const renderForumMessage = (message, depth = 0) => {
+    const replies = getReplies(message.id);
+    const createdAt = new Date(message.createdAt).toLocaleString();
+
+    return (
+      <div key={message.id} className="forum-item" style={{ marginLeft: depth > 0 ? '20px' : 0 }}>
+        <div className="forum-item-header">
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <strong>{message.author?.name || 'Participant'}</strong>
+            <span className="muted" style={{ fontSize: '12px' }}>{createdAt}</span>
+            {message.isAnnouncement && <span className="pill">Announcement</span>}
+            {message.isPinned && <span className="pill">Pinned</span>}
+          </div>
+          {canModerateForum && (
+            <div className="card-actions">
+              {!message.parentId && (
+                <button type="button" className="small-btn" onClick={() => handleTogglePinForumMessage(message)}>
+                  {message.isPinned ? 'Unpin' : 'Pin'}
+                </button>
+              )}
+              <button type="button" className="small-btn" onClick={() => handleDeleteForumMessage(message)}>Delete</button>
+            </div>
+          )}
+        </div>
+
+        <p style={{ margin: '8px 0 10px' }}>{message.text}</p>
+
+        <div className="forum-reactions">
+          {reactionOptions.map((emoji) => {
+            const users = Array.isArray(message.reactions?.[emoji]) ? message.reactions[emoji] : [];
+            const reacted = users.includes(String(userId));
+            return (
+              <button
+                key={`${message.id}-${emoji}`}
+                type="button"
+                className={reacted ? 'small-btn' : 'link-btn'}
+                onClick={() => handleToggleReaction(message, emoji)}
+              >
+                {emoji} {users.length > 0 ? users.length : ''}
+              </button>
+            );
+          })}
+        </div>
+
+        {canPostForum && !message.isDeleted && (
+          <div className="forum-reply-box">
+            <input
+              className="input"
+              placeholder="Write a reply..."
+              value={replyInputs[message.id] || ''}
+              onChange={(e) => setReplyInputs((prev) => ({ ...prev, [message.id]: e.target.value }))}
+            />
+            <button type="button" className="small-btn" onClick={() => handlePostForumMessage({ parentId: message.id })}>
+              Reply
+            </button>
+          </div>
+        )}
+
+        {replies.length > 0 && (
+          <div style={{ marginTop: '10px', display: 'grid', gap: '10px' }}>
+            {replies.map((reply) => renderForumMessage(reply, depth + 1))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className={darkMode ? 'user-root-dark' : 'user-root'}>
@@ -383,6 +590,70 @@ export default function OrganizerEventDetail() {
               </div>
             </div>
           )}
+
+          {/* Event Actions */}
+          <div className="section-card">
+            <div className="section-title">
+              <h3>Event Forum</h3>
+              <div className="card-actions" style={{ alignItems: 'center' }}>
+                <span className="muted">{forumMessages.length} messages</span>
+                {forumUnread > 0 && <span className="pill">{forumUnread} new</span>}
+                <button type="button" className="small-btn" onClick={markForumAsRead}>Mark as read</button>
+              </div>
+            </div>
+
+            <div className="tabs" style={{ marginBottom: '12px' }}>
+              <button
+                type="button"
+                className={forumMode === 'discussion' ? 'tab active' : 'tab'}
+                onClick={() => setForumMode('discussion')}
+              >
+                Discussion
+              </button>
+              <button
+                type="button"
+                className={forumMode === 'announcements' ? 'tab active' : 'tab'}
+                onClick={() => setForumMode('announcements')}
+              >
+                Announcements
+              </button>
+            </div>
+
+            {canPostForum && (
+              <div className="forum-compose">
+                <textarea
+                  className="input"
+                  placeholder={forumMode === 'announcements' ? 'Post an announcement...' : 'Respond to participant queries...'}
+                  value={forumInput}
+                  onChange={(e) => setForumInput(e.target.value)}
+                  style={{ minHeight: '90px', resize: 'vertical' }}
+                />
+                <div className="card-actions" style={{ justifyContent: 'space-between', width: '100%' }}>
+                  {canModerateForum ? (
+                    <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input
+                        type="checkbox"
+                        checked={postAsAnnouncement}
+                        onChange={(e) => setPostAsAnnouncement(e.target.checked)}
+                      />
+                      Post as announcement
+                    </label>
+                  ) : <span />}
+                  <button type="button" className="primary-btn" onClick={() => handlePostForumMessage()}>
+                    Post Message
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {forumNotice && <p className="message-info" style={{ marginTop: '8px' }}>{forumNotice}</p>}
+
+            <div style={{ marginTop: '14px', display: 'grid', gap: '12px' }}>
+              {visibleRootMessages.length ? visibleRootMessages.map((message) => renderForumMessage(message)) : (
+                <p className="muted">No messages yet in this section.</p>
+              )}
+            </div>
+          </div>
 
           {/* Event Actions */}
           <div className="section-card">

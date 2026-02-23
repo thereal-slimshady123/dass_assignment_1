@@ -6,11 +6,13 @@ const Event = require('../models/events');
 const PasswordChangeRequest = require('../models/PasswordChangeRequest');
 const Attendance = require('../models/Attendance');
 const MerchandiseOrder = require('../models/MerchandiseOrder');
+const ForumMessage = require('../models/ForumMessage');
 const QRCodeLib = require('qrcode');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { sendRegistrationEmail, sendOrganizerCredentialsEmail, sendPasswordResetEmail, sendEventRegistrationEmail, sendPasswordChangeEmail } = require('../config/email');
 const { uploadDataUri } = require('../config/cloudinary');
+const { emitForumUpdate } = require('../config/socket');
 
 const token_generator = (id) => {
   return jwt.sign(
@@ -1803,6 +1805,201 @@ const updateEvent = async (req, res) => {
   }
 };
 
+const mapForumMessage = (message) => ({
+  id: message._id,
+  eventId: String(message.eventId),
+  parentId: message.parentId ? String(message.parentId) : null,
+  text: message.text,
+  isAnnouncement: message.isAnnouncement,
+  isPinned: message.isPinned,
+  isDeleted: message.isDeleted,
+  deletedBy: message.deletedBy || '',
+  author: message.author,
+  reactions: Object.fromEntries((message.reactions || new Map()).entries ? message.reactions.entries() : Object.entries(message.reactions || {})),
+  createdAt: message.createdAt,
+  updatedAt: message.updatedAt
+});
+
+const getEventForumMessages = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const messages = await ForumMessage.find({ eventId }).sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      messages: messages.map(mapForumMessage)
+    });
+  } catch (error) {
+    console.error('Get forum messages error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+const canUserPostInForum = async ({ user, eventId }) => {
+  if (!user) return false;
+  if (user.role === 'admin') return true;
+
+  const event = await Event.findById(eventId).lean();
+  if (!event) return false;
+
+  if (user.role === 'organizer' && String(event.organizer_id) === String(user.id || user._id)) {
+    return true;
+  }
+
+  const hasAttendanceRegistration = await Attendance.findOne({ eventId, participantEmail: user.email }).lean();
+  if (hasAttendanceRegistration) return true;
+
+  const hasMerchApproval = await MerchandiseOrder.findOne({
+    eventId,
+    participantEmail: user.email,
+    status: 'approved'
+  }).lean();
+  if (hasMerchApproval) return true;
+
+  return false;
+};
+
+const createForumPost = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { text, parentId = null, isAnnouncement = false } = req.body;
+
+    const trimmed = String(text || '').trim();
+    if (!trimmed) {
+      return res.status(400).json({ success: false, message: 'Message text is required' });
+    }
+
+    const allowed = await canUserPostInForum({ user: req.user, eventId });
+    if (!allowed) {
+      return res.status(403).json({ success: false, message: 'Only registered participants can post in this forum' });
+    }
+
+    let announcementFlag = false;
+    if (isAnnouncement) {
+      const event = await Event.findById(eventId).lean();
+      const isOwnerOrganizer = req.user.role === 'organizer' && String(event?.organizer_id || '') === String(req.user.id || req.user._id);
+      if (req.user.role === 'admin' || isOwnerOrganizer) {
+        announcementFlag = true;
+      }
+    }
+
+    const displayName = [req.user.firstName, req.user.lastName].filter(Boolean).join(' ')
+      || req.user.adminName
+      || req.user.organizerName
+      || req.user.email
+      || 'Participant';
+
+    const post = await ForumMessage.create({
+      eventId,
+      parentId: parentId || null,
+      text: trimmed,
+      isAnnouncement: parentId ? false : announcementFlag,
+      author: {
+        id: String(req.user.id || req.user._id),
+        name: displayName,
+        email: req.user.email || '',
+        role: req.user.role || 'user'
+      }
+    });
+
+    emitForumUpdate(eventId, { type: 'message-created', messageId: String(post._id) });
+
+    res.status(201).json({
+      success: true,
+      message: mapForumMessage(post)
+    });
+  } catch (error) {
+    console.error('Create forum post error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+const checkModerationPermission = async ({ user, eventId }) => {
+  if (!user) return false;
+  if (user.role === 'admin') return true;
+  if (user.role !== 'organizer') return false;
+  const event = await Event.findById(eventId).lean();
+  return String(event?.organizer_id || '') === String(user.id || user._id);
+};
+
+const deleteForumPost = async (req, res) => {
+  try {
+    const { eventId, messageId } = req.params;
+    const allowed = await checkModerationPermission({ user: req.user, eventId });
+    if (!allowed) {
+      return res.status(403).json({ success: false, message: 'Not authorized to delete messages' });
+    }
+
+    const message = await ForumMessage.findOne({ _id: messageId, eventId });
+    if (!message) {
+      return res.status(404).json({ success: false, message: 'Message not found' });
+    }
+
+    message.text = '[Message removed by moderator]';
+    message.isDeleted = true;
+    message.deletedBy = req.user.email || req.user.adminName || 'Moderator';
+    await message.save();
+
+    emitForumUpdate(eventId, { type: 'message-deleted', messageId });
+    res.status(200).json({ success: true, message: mapForumMessage(message) });
+  } catch (error) {
+    console.error('Delete forum post error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+const togglePinForumPost = async (req, res) => {
+  try {
+    const { eventId, messageId } = req.params;
+    const allowed = await checkModerationPermission({ user: req.user, eventId });
+    if (!allowed) {
+      return res.status(403).json({ success: false, message: 'Not authorized to pin messages' });
+    }
+
+    const message = await ForumMessage.findOne({ _id: messageId, eventId });
+    if (!message) {
+      return res.status(404).json({ success: false, message: 'Message not found' });
+    }
+
+    message.isPinned = !message.isPinned;
+    await message.save();
+
+    emitForumUpdate(eventId, { type: 'message-pinned', messageId });
+    res.status(200).json({ success: true, message: mapForumMessage(message) });
+  } catch (error) {
+    console.error('Toggle forum pin error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+const toggleForumReactionController = async (req, res) => {
+  try {
+    const { eventId, messageId } = req.params;
+    const { emoji } = req.body;
+    if (!emoji) {
+      return res.status(400).json({ success: false, message: 'Emoji is required' });
+    }
+
+    const message = await ForumMessage.findOne({ _id: messageId, eventId });
+    if (!message) {
+      return res.status(404).json({ success: false, message: 'Message not found' });
+    }
+
+    const userId = String(req.user.id || req.user._id);
+    const current = Array.isArray(message.reactions.get(emoji)) ? message.reactions.get(emoji) : [];
+    const hasReacted = current.includes(userId);
+    const next = hasReacted ? current.filter((id) => id !== userId) : [...current, userId];
+    message.reactions.set(emoji, next);
+    await message.save();
+
+    emitForumUpdate(eventId, { type: 'message-reaction', messageId });
+    res.status(200).json({ success: true, message: mapForumMessage(message) });
+  } catch (error) {
+    console.error('Toggle forum reaction error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -1844,5 +2041,10 @@ module.exports = {
   rejectMerchandiseOrder,
   getUserMerchandiseOrders,
   updateEvent,
-  getMyEvents
+  getMyEvents,
+  getEventForumMessages,
+  createForumPost,
+  deleteForumPost,
+  togglePinForumPost,
+  toggleForumReactionController
 };

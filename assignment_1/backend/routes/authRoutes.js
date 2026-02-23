@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { register, login, createOrganizer, deleteOrganizer, getMe, addClub, deleteClub, addEvent, deleteEvent, getEvents, getEventById, getClubs, forgotPassword, resetPassword, changePassword, sendEventRegistrationEmailHandler, updateOrganizerProfile, incrementEventRegistration, getAllOrganizers, getPublicOrganizers, getAllClubs, updateOrganizerStatus, updateClubStatus, getPasswordResetRequests, clearPasswordResetRequest, getPasswordChangeRequests, approvePasswordChangeRequest, rejectPasswordChangeRequest, scanAttendance, getAttendanceDashboard, manualOverride, exportAttendanceCSV, createMerchandiseOrder, getMerchandiseOrders, approveMerchandiseOrder, rejectMerchandiseOrder, getUserMerchandiseOrders, updateEvent, getMyEvents } = require('../controllers/controller');
+const { register, login, createOrganizer, deleteOrganizer, getMe, addClub, deleteClub, addEvent, deleteEvent, getEvents, getEventById, getClubs, forgotPassword, resetPassword, changePassword, sendEventRegistrationEmailHandler, updateOrganizerProfile, incrementEventRegistration, getAllOrganizers, getPublicOrganizers, getAllClubs, updateOrganizerStatus, updateClubStatus, getPasswordResetRequests, clearPasswordResetRequest, getPasswordChangeRequests, approvePasswordChangeRequest, rejectPasswordChangeRequest, scanAttendance, getAttendanceDashboard, manualOverride, exportAttendanceCSV, createMerchandiseOrder, getMerchandiseOrders, approveMerchandiseOrder, rejectMerchandiseOrder, getUserMerchandiseOrders, updateEvent, getMyEvents, getEventForumMessages, createForumPost, deleteForumPost, togglePinForumPost, toggleForumReactionController } = require('../controllers/controller');
 const { protect, restrictTo } = require('../middleware/middleware');
 
 router.post('/register', register);
@@ -46,5 +46,12 @@ router.get('/merchandise-orders/:eventId', protect, restrictTo('organizer'), get
 router.post('/approve-merchandise-order', protect, restrictTo('organizer'), approveMerchandiseOrder);
 router.post('/reject-merchandise-order', protect, restrictTo('organizer'), rejectMerchandiseOrder);
 router.get('/my-merchandise-orders', protect, getUserMerchandiseOrders);
+
+// Event forum routes
+router.get('/events/:eventId/forum', protect, getEventForumMessages);
+router.post('/events/:eventId/forum', protect, createForumPost);
+router.delete('/events/:eventId/forum/:messageId', protect, deleteForumPost);
+router.patch('/events/:eventId/forum/:messageId/pin', protect, togglePinForumPost);
+router.patch('/events/:eventId/forum/:messageId/react', protect, toggleForumReactionController);
 
 module.exports = router;

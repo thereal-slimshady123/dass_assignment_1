@@ -1,12 +1,15 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const http = require('http');
 const connectDB = require('./config/db');
 const Admin = require('./models/admin');
+const { initSocket } = require('./config/socket');
 
 connectDB();
 
 const app = express();
+const server = http.createServer(app);
 
 app.use(cors());
 app.use(express.json());
@@ -44,7 +47,9 @@ const ensureAdminProvisioned = async () => {
   console.log('Admin account provisioned');
 };
 
-app.listen(PORT, async () => {
+initSocket(server);
+
+server.listen(PORT, async () => {
   await ensureAdminProvisioned();
   console.log(`Server is running on port ${PORT}`);
 });

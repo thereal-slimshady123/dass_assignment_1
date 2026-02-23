@@ -812,3 +812,36 @@
     gap: var(--spacing-md);
     flex-wrap: wrap;
 }
+
+.forum-compose {
+    display: grid;
+    gap: 10px;
+}
+
+.forum-item {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px;
+    background: var(--bg);
+}
+
+.forum-item-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.forum-reactions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.forum-reply-box {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
