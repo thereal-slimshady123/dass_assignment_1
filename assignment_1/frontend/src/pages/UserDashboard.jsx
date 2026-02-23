@@ -4,8 +4,17 @@ import "../components/user.css";
 import { loadRegistrations } from "../utils/eventStore";
 import { loadUser } from "../utils/profileStore";
 import { getEvents, getUserMerchandiseOrders } from "../services/AuthAPI";
+import {
+  normalizeEventForCalendar,
+  downloadICSFile,
+  createGoogleCalendarLink,
+  createOutlookCalendarLink,
+  getLocalTimezone,
+  formatReminderLabel
+} from "../utils/calendarExport";
 
 const tabs = ["Normal", "Merchandise", "Completed", "Cancelled/Rejected"];
+const reminderOptions = [0, 10, 30, 60, 1440];
 
 export default function UserDashboard() {
   const user = useMemo(() => loadUser(), []);
@@ -15,6 +24,13 @@ export default function UserDashboard() {
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [merchandiseOrders, setMerchandiseOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const [reminderMinutes, setReminderMinutes] = useState(30);
+  const [selectedEventIds, setSelectedEventIds] = useState([]);
+  const [calendarMessage, setCalendarMessage] = useState("");
+  const timezone = useMemo(() => getLocalTimezone(), []);
+
+  const getEventByRecord = (record) =>
+    events.find((item) => item.id === record.eventId || item._id === record.eventId);
 
   useEffect(() => {
     let isMounted = true;
@@ -65,11 +81,74 @@ export default function UserDashboard() {
   const upcomingEvents = useMemo(() => {
     const now = new Date();
     return registrations.filter((record) => {
-      const event = events.find((item) => item.id === record.eventId);
+      const event = getEventByRecord(record);
       if (!event) return false;
       return new Date(event.event_start) > now && record.status === "Registered";
     });
   }, [registrations, events]);
+
+  const exportableEvents = useMemo(() => {
+    return registrations
+      .filter((record) => record.eventType === "normal" && !["Cancelled", "Rejected"].includes(record.status))
+      .map((record) => ({
+        record,
+        event: normalizeEventForCalendar(record, getEventByRecord(record))
+      }))
+      .filter((item) => Boolean(item.event));
+  }, [registrations, events]);
+
+  useEffect(() => {
+    setSelectedEventIds((current) => current.filter((id) => exportableEvents.some((item) => item.record.id === id)));
+  }, [exportableEvents]);
+
+  const selectedExportEvents = useMemo(() => {
+    return exportableEvents
+      .filter((item) => selectedEventIds.includes(item.record.id))
+      .map((item) => item.event);
+  }, [exportableEvents, selectedEventIds]);
+
+  const handleToggleSelectEvent = (recordId) => {
+    setCalendarMessage("");
+    setSelectedEventIds((current) =>
+      current.includes(recordId)
+        ? current.filter((id) => id !== recordId)
+        : [...current, recordId]
+    );
+  };
+
+  const handleSelectAllExportable = () => {
+    setCalendarMessage("");
+    if (selectedEventIds.length === exportableEvents.length) {
+      setSelectedEventIds([]);
+      return;
+    }
+    setSelectedEventIds(exportableEvents.map((item) => item.record.id));
+  };
+
+  const handleDownloadSingleICS = (calendarEvent) => {
+    downloadICSFile([calendarEvent], {
+      reminderMinutes,
+      fileName: calendarEvent.title
+    });
+    setCalendarMessage(`Exported ${calendarEvent.title} as .ics`);
+  };
+
+  const handleBatchExport = () => {
+    if (!selectedExportEvents.length) {
+      setCalendarMessage("Select at least one registered event to export.");
+      return;
+    }
+
+    downloadICSFile(selectedExportEvents, {
+      reminderMinutes,
+      fileName: `registered-events-${selectedExportEvents.length}`
+    });
+    setCalendarMessage(`Exported ${selectedExportEvents.length} event(s) as .ics`);
+  };
+
+  const openCalendarLink = (url) => {
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
 
   const history = useMemo(() => {
     return registrations.filter((record) => {
@@ -93,18 +172,93 @@ export default function UserDashboard() {
               <h3>Upcoming Events</h3>
               <span className="muted">{upcomingEvents.length} registered</span>
             </div>
+            <div className="card-actions" style={{ marginBottom: "12px", alignItems: "center" }}>
+              <label className="muted" style={{ fontSize: "13px" }}>
+                Reminder:
+              </label>
+              <select
+                className="input"
+                style={{ maxWidth: "220px", padding: "8px" }}
+                value={reminderMinutes}
+                onChange={(e) => setReminderMinutes(Number(e.target.value))}
+              >
+                {reminderOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {formatReminderLabel(option)}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="small-btn"
+                onClick={handleSelectAllExportable}
+                disabled={!exportableEvents.length}
+              >
+                {selectedEventIds.length === exportableEvents.length && exportableEvents.length ? "Clear Selection" : "Select All"}
+              </button>
+              <button
+                type="button"
+                className="small-btn"
+                onClick={handleBatchExport}
+                disabled={!selectedExportEvents.length}
+              >
+                Export Selected (.ics)
+              </button>
+            </div>
+            <p className="muted" style={{ marginBottom: "12px" }}>Timezone: {timezone}</p>
+            {calendarMessage && <p className="message-info" style={{ marginBottom: "12px" }}>{calendarMessage}</p>}
             <div className="cards">
               {upcomingEvents.length ? (
-                upcomingEvents.map((record) => (
-                  <article key={record.id} className="card">
-                    <h4>{record.eventName}</h4>
-                    <p className="muted">{record.organizer}</p>
-                    <p className="pill">{record.eventType}</p>
-                    <p className="muted">
-                      {new Date(record.schedule.start).toLocaleString()} - {new Date(record.schedule.end).toLocaleString()}
-                    </p>
-                  </article>
-                ))
+                upcomingEvents.map((record) => {
+                  const eventDetail = getEventByRecord(record);
+                  const calendarEvent = normalizeEventForCalendar(record, eventDetail);
+
+                  return (
+                    <article key={record.id} className="card">
+                      <div className="card-actions" style={{ justifyContent: "space-between", marginBottom: "8px" }}>
+                        <label className="muted" style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedEventIds.includes(record.id)}
+                            onChange={() => handleToggleSelectEvent(record.id)}
+                          />
+                          Select
+                        </label>
+                        <p className="pill" style={{ margin: 0 }}>{record.eventType}</p>
+                      </div>
+                      <h4>{record.eventName}</h4>
+                      <p className="muted">{record.organizer}</p>
+                      <p className="muted">
+                        {new Date(record.schedule.start).toLocaleString()} - {new Date(record.schedule.end).toLocaleString()}
+                      </p>
+                      {calendarEvent && (
+                        <div className="card-actions" style={{ marginTop: "10px" }}>
+                          <button
+                            type="button"
+                            className="small-btn"
+                            onClick={() => handleDownloadSingleICS(calendarEvent)}
+                          >
+                            Download .ics
+                          </button>
+                          <button
+                            type="button"
+                            className="small-btn"
+                            onClick={() => openCalendarLink(createGoogleCalendarLink(calendarEvent, { reminderMinutes, timezone }))}
+                          >
+                            Google Calendar
+                          </button>
+                          <button
+                            type="button"
+                            className="small-btn"
+                            onClick={() => openCalendarLink(createOutlookCalendarLink(calendarEvent, { reminderMinutes }))}
+                          >
+                            Outlook
+                          </button>
+                        </div>
+                      )}
+                    </article>
+                  );
+                })
               ) : (
                 <p className="muted">{loading ? "Loading events..." : "No upcoming events yet."}</p>
               )}

@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { register, login, createOrganizer, deleteOrganizer, getMe, addClub, deleteClub, addEvent, deleteEvent, getEvents, getEventById, getClubs, forgotPassword, resetPassword, changePassword, requestOrganizerPasswordReset, getOrganizerPasswordResetHistory, sendEventRegistrationEmailHandler, updateOrganizerProfile, incrementEventRegistration, getAllOrganizers, getPublicOrganizers, getAllClubs, updateOrganizerStatus, updateClubStatus, getPasswordResetRequests, clearPasswordResetRequest, getPasswordChangeRequests, approvePasswordChangeRequest, rejectPasswordChangeRequest, scanAttendance, getAttendanceDashboard, manualOverride, exportAttendanceCSV, createMerchandiseOrder, getMerchandiseOrders, approveMerchandiseOrder, rejectMerchandiseOrder, getUserMerchandiseOrders, updateEvent, getMyEvents } = require('../controllers/controller');
+const { register, login, createOrganizer, deleteOrganizer, getMe, addClub, deleteClub, addEvent, deleteEvent, getEvents, getEventById, getClubs, forgotPassword, resetPassword, changePassword, sendEventRegistrationEmailHandler, updateOrganizerProfile, incrementEventRegistration, getAllOrganizers, getPublicOrganizers, getAllClubs, updateOrganizerStatus, updateClubStatus, getPasswordResetRequests, clearPasswordResetRequest, getPasswordChangeRequests, approvePasswordChangeRequest, rejectPasswordChangeRequest, scanAttendance, getAttendanceDashboard, manualOverride, exportAttendanceCSV, createMerchandiseOrder, getMerchandiseOrders, approveMerchandiseOrder, rejectMerchandiseOrder, getUserMerchandiseOrders, updateEvent, getMyEvents } = require('../controllers/controller');
 const { protect, restrictTo } = require('../middleware/middleware');
 
 router.post('/register', register);
@@ -8,8 +8,6 @@ router.post('/login', login);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 router.post('/change-password', protect, changePassword);
-router.post('/organizer-password-reset-request', protect, restrictTo('organizer'), requestOrganizerPasswordReset);
-router.get('/organizer-password-reset-history', protect, restrictTo('organizer'), getOrganizerPasswordResetHistory);
 router.post('/send-event-email', sendEventRegistrationEmailHandler);
 router.get('/me', protect, getMe);
 router.post('/create-organizer', protect, restrictTo('admin'), createOrganizer);
