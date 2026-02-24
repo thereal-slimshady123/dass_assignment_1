@@ -5,7 +5,7 @@ import "../components/user.css";
 import { getEvents } from "../services/AuthAPI";
 import axios from "axios";
 
-const API_BASE = "http://localhost:5000/api";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000/api";
 
 export default function OrganizerDetail() {
   const { organizerId } = useParams();

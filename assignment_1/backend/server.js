@@ -6,8 +6,6 @@ const connectDB = require('./config/db');
 const Admin = require('./models/admin');
 const { initSocket } = require('./config/socket');
 
-connectDB();
-
 const app = express();
 const server = http.createServer(app);
 
@@ -49,7 +47,18 @@ const ensureAdminProvisioned = async () => {
 
 initSocket(server);
 
-server.listen(PORT, async () => {
-  await ensureAdminProvisioned();
-  console.log(`Server is running on port ${PORT}`);
-});
+const startServer = async () => {
+  try {
+    await connectDB();
+
+    server.listen(PORT, async () => {
+      await ensureAdminProvisioned();
+      console.log(`Server is running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error.message);
+    process.exit(1);
+  }
+};
+
+startServer();

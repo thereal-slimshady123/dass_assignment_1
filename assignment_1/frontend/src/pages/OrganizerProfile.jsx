@@ -5,6 +5,8 @@ import '../components/user.css';
 import { loadUser } from '../utils/profileStore';
 import { requestOrganizerPasswordReset, getOrganizerPasswordResetHistory } from '../services/AuthAPI';
 
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
+
 export default function OrganizerProfile() {
   const navigate = useNavigate();
   const user = useMemo(() => loadUser(), []);
@@ -90,7 +92,7 @@ export default function OrganizerProfile() {
       }
 
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/auth/update-organizer-profile', {
+      const response = await fetch(`${API_BASE}/auth/update-organizer-profile`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

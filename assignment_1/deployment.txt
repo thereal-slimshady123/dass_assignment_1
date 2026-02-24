@@ -1,0 +1,165 @@
+DEPLOYMENT GUIDE (Frontend on Vercel + Backend on Heroku)
+Project structure:
+- backend/
+- frontend/
+- deployment.txt (this file)
+
+Date: 2026-02-24
+
+==================================================
+0) PREREQUISITES
+==================================================
+Install and login:
+1. Git: https://git-scm.com/downloads
+2. Node.js (LTS): https://nodejs.org/
+3. Heroku CLI: https://devcenter.heroku.com/articles/heroku-cli
+4. Vercel CLI (optional, dashboard is enough): npm i -g vercel
+
+Login commands:
+- heroku login
+- vercel login
+
+Make sure your code is pushed to GitHub (recommended for Vercel + Heroku workflows).
+
+==================================================
+1) PRE-DEPLOY CHECKS (IMPORTANT)
+==================================================
+Your frontend currently has mixed API config usage:
+- Some files use VITE_API_BASE
+- One file uses VITE_API_BASE_URL
+- frontend/src/services/AuthAPI.js is hardcoded to http://localhost:5000/api/auth
+
+Before production deploy, ensure frontend API URLs point to your Heroku backend URL.
+At minimum, do ONE of these:
+A) Preferred: Refactor all API code to use one env var (for example VITE_API_BASE)
+B) Quick compatibility: set BOTH VITE_API_BASE and VITE_API_BASE_URL in Vercel env vars, and also update AuthAPI.js to use env var instead of localhost.
+
+Suggested value (after backend deploy):
+- VITE_API_BASE=https://<your-heroku-app>.herokuapp.com/api
+- VITE_API_BASE_URL=https://<your-heroku-app>.herokuapp.com/api/auth
+
+==================================================
+2) DEPLOY BACKEND TO HEROKU
+==================================================
+This repo is monorepo-style, so deploy backend/ using git subtree.
+
+2.1 Create Heroku app
+From project root (same level as backend and frontend):
+- heroku create <your-backend-app-name>
+
+2.2 Add Heroku remote alias
+- heroku git:remote -a <your-backend-app-name> -r heroku-backend
+
+2.3 Set backend environment variables (REQUIRED)
+Use Heroku dashboard OR CLI:
+- heroku config:set MONGODB_URI="<your-mongodb-connection-string>" -a <your-backend-app-name>
+- heroku config:set JWT_SECRET="<your-strong-secret>" -a <your-backend-app-name>
+- heroku config:set JWT_EXPIRE="7d" -a <your-backend-app-name>
+- heroku config:set FRONTEND_URL="https://<your-vercel-domain>" -a <your-backend-app-name>
+- heroku config:set EMAIL_USER="<your-email>" -a <your-backend-app-name>
+- heroku config:set EMAIL_PASSWORD="<your-email-app-password>" -a <your-backend-app-name>
+- heroku config:set CLOUDINARY_CLOUD_NAME="<cloudinary-name>" -a <your-backend-app-name>
+- heroku config:set CLOUDINARY_API_KEY="<cloudinary-key>" -a <your-backend-app-name>
+- heroku config:set CLOUDINARY_API_SECRET="<cloudinary-secret>" -a <your-backend-app-name>
+
+Optional (auto-provision admin from server.js):
+- heroku config:set ADMIN_EMAIL="<admin-email>" -a <your-backend-app-name>
+- heroku config:set ADMIN_PASSWORD="<admin-password>" -a <your-backend-app-name>
+- heroku config:set ADMIN_NAME="Admin" -a <your-backend-app-name>
+
+2.4 Deploy backend folder
+- git subtree push --prefix backend heroku-backend main
+
+If your branch is not main, replace main with your branch name.
+
+2.5 Verify backend
+- heroku open -a <your-backend-app-name>
+Expected: JSON response from / route.
+
+Also verify API route:
+- https://<your-backend-app-name>.herokuapp.com/api/auth
+(or a known endpoint like /api/auth/login with Postman)
+
+==================================================
+3) DEPLOY FRONTEND TO VERCEL
+==================================================
+Recommended: Deploy from GitHub using Vercel dashboard.
+
+3.1 Import project in Vercel
+1. Open Vercel Dashboard -> Add New Project
+2. Import your GitHub repository
+3. Configure project settings:
+   - Root Directory: frontend
+   - Framework Preset: Vite
+   - Build Command: npm run build
+   - Output Directory: dist
+
+3.2 Add frontend environment variables in Vercel
+Set at least:
+- VITE_API_BASE=https://<your-backend-app-name>.herokuapp.com/api
+- VITE_API_BASE_URL=https://<your-backend-app-name>.herokuapp.com/api/auth
+
+(Use both because current codebase references both names.)
+
+3.3 Deploy
+Click Deploy.
+
+3.4 Verify frontend loads and API calls succeed
+Open deployed URL and test:
+- login/register
+- event listing
+- any action that hits backend API
+
+==================================================
+4) CONNECT FRONTEND + BACKEND (CORS / SOCKET)
+==================================================
+After Vercel gives final production domain (example: https://your-app.vercel.app), update backend FRONTEND_URL:
+- heroku config:set FRONTEND_URL="https://your-app.vercel.app" -a <your-backend-app-name>
+
+Then restart dyno (or trigger deploy):
+- heroku restart -a <your-backend-app-name>
+
+==================================================
+5) OPTIONAL: VERCEL CLI DEPLOY (instead of dashboard)
+==================================================
+From project root:
+- vercel --cwd frontend
+For production:
+- vercel --cwd frontend --prod
+
+Still ensure env vars are set in Vercel project settings.
+
+==================================================
+6) POST-DEPLOY CHECKLIST
+==================================================
+- Backend root URL responds
+- Backend connected to MongoDB (check Heroku logs)
+- Frontend can call backend API (no CORS errors)
+- Password reset emails work
+- Cloudinary uploads work
+- Socket features work
+
+Useful logs:
+- heroku logs --tail -a <your-backend-app-name>
+
+==================================================
+7) COMMON ISSUES + FIXES
+==================================================
+Issue: Frontend still calls localhost
+Fix: Update frontend/src/services/AuthAPI.js to use env var, redeploy Vercel.
+
+Issue: CORS / socket connection fails
+Fix: Ensure Heroku FRONTEND_URL exactly matches deployed Vercel domain (including https).
+
+Issue: App crashes on start
+Fix: Missing env vars in Heroku; check with:
+- heroku config -a <your-backend-app-name>
+
+Issue: Subtree push fails
+Fix: Confirm branch name and run from repo root:
+- git branch
+- git subtree push --prefix backend heroku-backend <your-branch>
+
+==================================================
+END
+==================================================

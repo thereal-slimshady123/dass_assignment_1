@@ -10,6 +10,7 @@ const ForumMessage = require('../models/ForumMessage');
 const QRCodeLib = require('qrcode');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const https = require('https');
 const { sendRegistrationEmail, sendOrganizerCredentialsEmail, sendPasswordResetEmail, sendEventRegistrationEmail, sendPasswordChangeEmail } = require('../config/email');
 const { uploadDataUri } = require('../config/cloudinary');
 const { emitForumUpdate } = require('../config/socket');
@@ -24,6 +25,84 @@ const token_generator = (id) => {
 
 const generateTemporaryPassword = () => {
   return crypto.randomBytes(9).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0, 12);
+};
+
+const isValidDiscordWebhookUrl = (url) =>
+  typeof url === 'string' && /^https:\/\/discord\.com\/api\/webhooks\/.+/i.test(url.trim());
+
+const sendDiscordWebhook = (url, payload) => new Promise((resolve, reject) => {
+  try {
+    const target = new URL(url);
+    const body = JSON.stringify(payload);
+
+    const req = https.request(
+      {
+        method: 'POST',
+        hostname: target.hostname,
+        path: `${target.pathname}${target.search}`,
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body)
+        },
+        timeout: 10000
+      },
+      (res) => {
+        const chunks = [];
+        res.on('data', (chunk) => chunks.push(chunk));
+        res.on('end', () => {
+          const responseBody = Buffer.concat(chunks).toString('utf8');
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            resolve(responseBody);
+          } else {
+            reject(new Error(`Discord webhook responded with ${res.statusCode}: ${responseBody}`));
+          }
+        });
+      }
+    );
+
+    req.on('error', reject);
+    req.on('timeout', () => req.destroy(new Error('Discord webhook request timed out')));
+    req.write(body);
+    req.end();
+  } catch (error) {
+    reject(error);
+  }
+});
+
+const sendEventCreatedDiscordNotification = async ({ organizer, event }) => {
+  if (!organizer?.enableDiscordNotifications) return;
+  const webhookUrl = organizer.discordWebhookUrl?.trim();
+  if (!isValidDiscordWebhookUrl(webhookUrl)) return;
+
+  const start = new Date(event.event_start);
+  const end = new Date(event.event_end);
+  const deadline = new Date(event.reg_deadline);
+
+  const payload = {
+    content: `📢 New event created by ${organizer.organizerName || `${organizer.firstName} ${organizer.lastName}`.trim()}`,
+    embeds: [
+      {
+        title: `New Event: ${event.eventName}`,
+        description: event.description || 'No description provided',
+        color: 5793266,
+        fields: [
+          { name: 'Type', value: String(event.type || 'normal'), inline: true },
+          { name: 'Eligibility', value: String(event.eligibility || 'open'), inline: true },
+          { name: 'Status', value: String(event.status || 'draft'), inline: true },
+          { name: 'Registration Deadline', value: deadline.toLocaleString(), inline: false },
+          { name: 'Event Start', value: start.toLocaleString(), inline: true },
+          { name: 'Event End', value: end.toLocaleString(), inline: true },
+          { name: 'Registration Limit', value: String(event.reg_limit ?? 0), inline: true },
+          { name: 'Registration Fee', value: `INR ${event.reg_fee ?? 0}`, inline: true },
+          { name: 'Tags', value: Array.isArray(event.event_tags) && event.event_tags.length ? event.event_tags.join(', ') : 'N/A', inline: false }
+        ],
+        footer: { text: 'DASS Event Management System' },
+        timestamp: new Date().toISOString()
+      }
+    ]
+  };
+
+  await sendDiscordWebhook(webhookUrl, payload);
 };
 
 const createOrganizerResetRequestRecord = async ({ user, reason }) => {
@@ -426,6 +505,12 @@ const addEvent = async (req, res) => {
     }
 
     const event = await Event.create(eventData);
+
+    try {
+      await sendEventCreatedDiscordNotification({ organizer, event });
+    } catch (discordError) {
+      console.error('Discord event creation notification failed:', discordError.message);
+    }
 
     console.log('Event created successfully:', event._id);
 
