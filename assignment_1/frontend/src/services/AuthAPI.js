@@ -22,7 +22,7 @@ export const resetPassword = (data) =>
   axios.post(`${API}/reset-password`, data);
 
 export const changePassword = (data) =>
-  axios.post(`${API}/change-password`, data);
+  axios.post(`${API}/change-password`, data, authHeaders());
 
 export const requestOrganizerPasswordReset = (data) => {
   return axios.post(`${API}/organizer-password-reset-request`, data, authHeaders());

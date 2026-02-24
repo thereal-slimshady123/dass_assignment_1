@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import UserNav from "../components/UserNav";
 import "../components/user.css";
 import { loadPreferences, loadUser, savePreferences, saveUser } from "../utils/profileStore";
-import { getClubs, changePassword } from "../services/AuthAPI";
+import { getClubs, changePassword as changePasswordApi } from "../services/AuthAPI";
 
 const interestOptions = [
   "Music",
@@ -82,7 +82,7 @@ export default function Profile() {
     setMsg("Profile updated successfully.");
   };
 
-  const changePassword = async () => {
+  const handleChangePassword = async () => {
     setPassMsg("");
     if (!currentPass || !newPass || !confirmPass) {
       setPassMsg("Please fill all password fields.");
@@ -106,7 +106,7 @@ export default function Profile() {
         return;
       }
 
-      const response = await changePassword({
+      const response = await changePasswordApi({
         userId: user.id,
         currentPassword: currentPass,
         newPassword: newPass,
@@ -231,7 +231,7 @@ export default function Profile() {
               </div>
             </div>
             {passMsg && <p className="message-info">{passMsg}</p>}
-            <button type="button" className="primary-btn" onClick={changePassword}>
+            <button type="button" className="primary-btn" onClick={handleChangePassword}>
               Update Password
             </button>
           </div>
