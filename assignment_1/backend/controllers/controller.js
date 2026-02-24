@@ -70,9 +70,15 @@ const sendDiscordWebhook = (url, payload) => new Promise((resolve, reject) => {
 });
 
 const sendEventCreatedDiscordNotification = async ({ organizer, event }) => {
-  if (!organizer?.enableDiscordNotifications) return;
+  if (!organizer?.enableDiscordNotifications) {
+    console.log('Discord notify skipped: organizer notifications disabled');
+    return { attempted: false, status: 'skipped', reason: 'disabled' };
+  }
   const webhookUrl = organizer.discordWebhookUrl?.trim();
-  if (!isValidDiscordWebhookUrl(webhookUrl)) return;
+  if (!isValidDiscordWebhookUrl(webhookUrl)) {
+    console.log('Discord notify skipped: invalid or missing webhook URL');
+    return { attempted: false, status: 'skipped', reason: 'invalid_webhook' };
+  }
 
   const start = new Date(event.event_start);
   const end = new Date(event.event_end);
@@ -103,6 +109,7 @@ const sendEventCreatedDiscordNotification = async ({ organizer, event }) => {
   };
 
   await sendDiscordWebhook(webhookUrl, payload);
+  return { attempted: true, status: 'sent' };
 };
 
 const createOrganizerResetRequestRecord = async ({ user, reason }) => {
@@ -475,6 +482,11 @@ const addEvent = async (req, res) => {
       return res.status(403).json({ success: false, message: "Only organizers can create events" });
     }
 
+    console.log('Discord notify config:', {
+      enableDiscordNotifications: organizer.enableDiscordNotifications,
+      hasWebhookUrl: Boolean(organizer.discordWebhookUrl)
+    });
+
     // Ensure event_tags is an array
     let tagsArray = event_tags;
     if (typeof event_tags === 'string') {
@@ -506,15 +518,26 @@ const addEvent = async (req, res) => {
 
     const event = await Event.create(eventData);
 
+    let discordNotification = null;
     try {
-      await sendEventCreatedDiscordNotification({ organizer, event });
+      discordNotification = await sendEventCreatedDiscordNotification({ organizer, event });
     } catch (discordError) {
+      discordNotification = {
+        attempted: true,
+        status: 'failed',
+        reason: discordError.message
+      };
       console.error('Discord event creation notification failed:', discordError.message);
     }
 
     console.log('Event created successfully:', event._id);
 
-    res.status(201).json({ success: true, message: "Event created successfully", event });
+    res.status(201).json({
+      success: true,
+      message: "Event created successfully",
+      event,
+      discordNotification
+    });
   } catch (error) {
     console.error('Add event error:', error);
     res.status(500).json({ success: false, message: error.message || "Server error" });
