@@ -47,17 +47,31 @@ export default function OrganizerDashboard() {
   };
 
   const getEventStats = () => {
+    const totalRegistrations = events.reduce((sum, e) => sum + (e.reg_count || 0), 0);
+    const totalRevenue = events.reduce((sum, e) => sum + ((e.reg_count || 0) * (e.reg_fee || 0)), 0);
+    const totalAttendance = events.reduce(
+      (sum, e) => sum + (e.attendance_count || e.attendance || e.reg_count || 0),
+      0
+    );
+
     const stats = {
       total: events.length,
       draft: events.filter(e => e.status === 'draft').length,
       published: events.filter(e => e.status === 'published').length,
       ongoing: events.filter(e => e.status === 'ongoing').length,
       closed: events.filter(e => e.status === 'closed').length,
-      totalRegistrations: events.reduce((sum, e) => sum + (e.reg_count || 0), 0),
-      totalRevenue: events.reduce((sum, e) => sum + ((e.reg_count || 0) * (e.reg_fee || 0)), 0)
+      totalRegistrations,
+      totalRevenue,
+      totalAttendance
     };
     return stats;
   };
+
+  const formatCurrency = (value) => new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0
+  }).format(value || 0);
 
   const stats = getEventStats();
   const displayEvents = events.slice(carouselIndex, Math.min(carouselIndex + 3, events.length));
@@ -113,6 +127,16 @@ export default function OrganizerDashboard() {
               <p className="stat-detail">
                 {stats.published} Published • {stats.ongoing} Ongoing • {stats.closed} Closed
               </p>
+            </div>
+            <div className={`stat-card ${darkMode ? 'stat-card-dark' : ''}`}>
+              <h3>Total Registrations</h3>
+              <p className="stat-number">{stats.totalRegistrations}</p>
+              <p className="stat-detail">Attendance: {stats.totalAttendance}</p>
+            </div>
+            <div className={`stat-card ${darkMode ? 'stat-card-dark' : ''}`}>
+              <h3>Total Revenue</h3>
+              <p className="stat-number">{formatCurrency(stats.totalRevenue)}</p>
+              <p className="stat-detail">Based on registrations × entry fee</p>
             </div>
           </div>
 
